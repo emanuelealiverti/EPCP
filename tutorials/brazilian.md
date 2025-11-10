@@ -51,8 +51,7 @@ the inverse of the variance.
 
 ``` r
 p = NCOL(X)
-prior = list(mu0 = rep(0, p), 
-             S0 = diag(2, p, p))
+prior = list(mu0 = rep(0, p), S0 = diag(2, p, p))
 prior$Q0 = solve(prior$S0)
 ```
 
@@ -171,12 +170,15 @@ pmf_sim = simulate(pmf_tmp,Yt,X, prior)
 ```
 
 ``` r
+library(ggplot2)
 pmeans = list("EP" = ep_tmp$est$m, "MF" = vb_tmp$est$m, "PMF" = pmf_tmp$est$m) 
 pvar = list("EP" = ep_tmp$est$S, "MF" = vb_tmp$est$S, "PMF" = pmf_tmp$est$S) 
 plot_marginals(m_list = pmeans, S_list = pvar, methods_labels = names(pmeans))
 ```
 
 <img src="brazil.png" width="3300" />
+
+# References
 
 <div id="refs" class="references csl-bib-body hanging-indent">
 
