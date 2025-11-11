@@ -1,19 +1,62 @@
-#' Sample from a fitted PMF viord model
+#' Posterior Sampling from a Fitted \code{viord} Model
 #'
-#' Draws posterior samples of regression coefficients for a \code{viord}
-#' object estimated with the PMF algorithm.
+#' Generates posterior samples from the approximate posterior for the regression coefficients from a fitted
+#' cumulative probit model obtained via \code{\link{viord}}.
 #'
-#' @param object A fitted object of class \code{"viord"} obtained with method = "PMF".
-#' @param Y A factor or numeric vector of ordinal responses.
-#' @param X The design matrix used in the model.
-#' @param prior A list containing prior quantities (\code{mu0}, \code{S0}, \code{Q0}).
-#' @param nMC Number of Monte Carlo samples to draw (default 1e3).
-#' @param ... Ignored, for compatibility.
+#' When the model is estimated using the \emph{Partially Factorized Mean-Field (PMF)}
+#' algorithm, independent Monte Carlo sampling is used to
+#' chatacterize the marginal approximate posterior of \eqn{\beta}. In this case, the user must supply the
+#' original data (\code{Y}, \code{X}) and the prior specification used for model fitting.
+#' The sampling relies on independent truncated normal draws from the optimal density \eqn{q^\star_{\tiny PMF}(z)}
 #'
-#' @return A matrix of posterior samples of regression coefficients,
-#'         with one row per sample.
+#' For models estimated using \emph{Expectation Propagation (EP)} or
+#' \emph{Mean-Field (MF)}, the approximate posterior of \eqn{\beta}
+#' is Gaussian with mean \code{object$est$m} and covariance \code{object$est$S};
+#' hence, posterior samples are drawn directly from this multivariate normal
+#' distribution.
+#'
+#' @param object A fitted object of class \code{"viord"}.
+#' @param Y Optional. Ordinal response vector (factor or integer) required
+#'   only if \code{object$algorithm == "PMF"}.
+#' @param X Optional. Design matrix used in the model, required only if
+#'   \code{object$algorithm == "PMF"}.
+#' @param prior Optional. A list containing prior quantities
+#'   (\code{mu0}, \code{S0}, \code{Q0}), required only if
+#'   \code{object$algorithm == "PMF"}.
+#' @param nMC Integer. Number of Monte Carlo samples to draw (default \code{1e3}).
+#' @param ... Additional arguments (ignored).
+#'
+#' @return
+#' A numeric matrix of posterior samples of the regression coefficients,
+#' with one row per sample.
+#'
+#'
+#' @seealso
+#' \code{\link{viord}} for model fitting,
+#' \code{\link{summary.viord}} for summaries, and
+#' \code{\link{predict.viord}} for predictive probabilities.
+#'
+#' @references
+#' Aliverti, E. (2025).  
+#' *Approximate Bayesian Inference for Cumulative Probit Regression Models*.  
+#' \url{https://arxiv.org/abs/2511.06967}
+#'
+#' @examples
+#' \dontrun{
+#' # Fit model with PMF approximation
+#' fit <- viord(Y, X, prior = prior, algorithm = "PMF")
+#'
+#' # Posterior sampling via Monte Carlo
+#' samples <- simulate(fit, Y = Y, X = X, prior = prior, nMC = 1000)
+#'
+#' # Fit model with EP (Gaussian posterior)
+#' fit_ep <- viord(Y, X, prior = prior, algorithm = "EP")
+#'
+#' # Sampling directly from Gaussian approximation
+#' samples_ep <- simulate(fit_ep, nMC = 1000)
+#' }
+#'
 #' @export
-
 simulate.viord = function(object, Y, X, prior, nMC = 1e3) {
 	method = toupper(object$algorithm)
 

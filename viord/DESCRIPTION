@@ -5,7 +5,7 @@ Version: 1.0
 Date: 2025-11-02
 Authors@R: person("Emanuele", "Aliverti", role = c("aut", "cre"), email
         = "aliverti@stat.unipd.it")
-Description: Provides tools for approximate Bayesian inference in cumulative probit regression models, implemented via Expectation Propagation (EP) and Variational Bayes algorithms under mean-field or partially factorized mean-field assumptions.
+Description: Provides tools for approximate Bayesian inference in cumulative probit regression models, implemented via Expectation Propagation (EP) and Variational Bayes algorithms under mean-field or partially factorized mean-field assumptions; see Aliverti (2025) <arXiv:2511.06967> for details.
 License: GPL (>= 2)
 Suggests: tinytest
 Encoding: UTF-8

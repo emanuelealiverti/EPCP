@@ -3,9 +3,9 @@ viord: Brazilian Bank Case Study
 Emanuele Aliverti
 
 This document provides an illustration of the `viord` package,
-replicating an analysis on the “Brazilian Bank” dataset produced in
-Section 4.1 of Aliverti (2025). Data are provided from Azzalini and
-Scarpa (2012), and furhter details can be found in Appendix B.3 of such
+replicating analysis on the “Brazilian Bank” dataset produced in Section
+4.1 of Aliverti (2025); data are provided from Azzalini and Scarpa
+(2012), and furhter details can be found in Appendix B.3 of such a
 reference. We fit an ordered probit model using the three different
 variational algorithms available in the package: Expectation Propagation
 (EP), Mean-Field (MF) Variational Bayes, and Partially-Factorized
@@ -41,13 +41,12 @@ Next, we prepare the response variable `Yt` and the design matrix `X`.
 # Define the ordered categorical response
 Yt = factor(brazil$satisfaction, ordered = TRUE)
 X = model.matrix(~age + gender + pincome, data = brazil)[,-1]
-# Standardize predictors as in Gelman 2005
 X = apply(X,2, function(l)  (l - mean(l))/(2 * sd(l)))
 ```
 
 We specify the list of prior parameters (mean vector and covariance
 matrices) required by the `viord` function, and the precision `Q0` ans
-the inverse of the variance.
+the inverse of the covariance.
 
 ``` r
 p = NCOL(X)
@@ -158,7 +157,7 @@ summary(pmf_tmp)
 ## Graphical comparison
 
 We compare the three approximations graphically. Note that for `PMF`,
-the marginal posterior for $\beta$ is not Gaussian, and should be
+the marginal posterior for $\beta$ is **not** Gaussian, and should be
 avaluated relying on the utility `simulate` that creates independent
 Monte-Carlo samples from the approximate posterior. For simplicity, we
 display such a density as a Gaussian whose moments match those of the

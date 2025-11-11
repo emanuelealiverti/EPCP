@@ -6,9 +6,9 @@
 #'
 #' Depending on the inference algorithm used to fit the model:
 #' \itemize{
-#'   \item For \strong{EP} and \strong{MF} methods, predictive probabilities are
-#'   obtained using a Gaussian approximation of the posterior (analytical integration).
-#'   \item For the \strong{PMF} method, predictive probabilities are computed
+#'   \item For EP and MF methods, predictive probabilities are
+#'   obtained analytically since the approximate posterior  is Gaussian
+#'   \item For the PMF method, predictive probabilities are computed
 #'   using a Monte Carlo procedure based on truncated normal sampling.
 #' }
 #'
@@ -21,7 +21,7 @@
 #' @param nMC Number of Monte Carlo samples for the PMF predictive distribution
 #'   (default \code{1e3}).
 #' @param type A character string specifying the type of prediction:
-#'   \code{"prob"} returns the full matrix of posterior predictive probabilities,
+#'   \code{"prob"} returns the full matrix of posterior predictive probabilities (for each category),
 #'   while \code{"class"} returns only the most probable categories
 #'   (default \code{"class"}).
 #' @param ... Further arguments (currently ignored).

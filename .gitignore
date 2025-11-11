@@ -52,6 +52,8 @@ rsconnect/
 *.o
 *.so
 
+# mac os
+.DS_Store
 
 
 
