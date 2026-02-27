@@ -28,6 +28,7 @@
 #'     \item \code{est}: posterior (approximate) mean vector \eqn{m} and covariance matrix \eqn{S};
 #'     \item \code{alpha}: estimated thresholds (cutoffs);
 #'     \item \code{algorithm}: the selected inference algorithm;
+#'     \item \code{prior}: the prior provided as input
 #'     \item additional fields used for convergence diagnostics and summaries.
 #'   }
 #' 
@@ -110,6 +111,7 @@ viord = function(Y, X, prior,
 
   out$coef.names = colnames(X)
   out$algorithm = algorithm
+  out$prior = prior
   class(out) = 'viord'
   return(out)
 }
