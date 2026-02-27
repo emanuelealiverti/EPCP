@@ -86,3 +86,51 @@ print.summary.viord <- function(x, digits = max(3L, getOption("digits") - 3L), .
       format(x$log_marginal_lik, digits = digits), "\n")
   invisible(x)
 }
+
+#' @export
+coef.viord <- function(object, what = c("beta", "alpha"), ...) {
+  if (!inherits(object, "viord"))
+    stop("object must be of class 'viord'")
+  
+  what <- match.arg(what)
+  
+  if (what == "beta") {
+    m <- object$est$m
+    coef_names <- object$coef.names
+    if (is.null(coef_names))
+      coef_names <- paste0("beta[", seq_along(m), "]")
+    names(m) <- coef_names
+    return(m)
+  }
+  
+  if (what == "alpha") {
+    alpha <- object$alpha
+    if (is.null(alpha))
+      return(NULL)
+    alpha <- alpha[is.finite(alpha)]
+    names(alpha) <- paste0("alpha[", seq_along(alpha), "]")
+    return(alpha)
+  }
+}
+#' @export
+vcov.viord <- function(object, what = c("beta", "alpha"), ...) {
+  if (!inherits(object, "viord"))
+    stop("object must be of class 'viord'")
+  
+  what <- match.arg(what)
+  
+  if (what == "beta") {
+    S <- object$est$S
+    coef_names <- object$coef.names
+    if (is.null(coef_names))
+      coef_names <- paste0("beta[", seq_len(nrow(S)), "]")
+    dimnames(S) <- list(coef_names, coef_names)
+    return(S)
+  }
+  
+  if (what == "alpha") {
+    stop("No covariance matrix stored for 'alpha' parameters.")
+  }
+}
+
+
