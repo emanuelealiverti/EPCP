@@ -96,6 +96,7 @@ double elbo_pmf(arma::mat X, arma::mat V, arma::mat XV,  arma::vec xiZ, arma::ve
 
 
 double log2pi = log(2*M_PI);
+
 // Gaussian normalizing constant, used for computing the marginal likelihood for EP
 double lPsi(const arma::vec& r, const arma::mat& Q) {
 	// Implement lPsi function
@@ -105,4 +106,15 @@ double lPsi(const arma::vec& r, const arma::mat& Q) {
 	res = 0.5 * arma::as_scalar(r.t() * arma::inv(Q) * r) - 0.5 * ldet + 0.5*p*log2pi;
 	return res;
 }
+
+// Gaussian normalizing constant, in terms of covariance matrix (avoids a further inversion)
+double lPsi_cov(const arma::vec& r, const arma::mat& S) {
+	// Implement lPsi function
+	double ldet, res;
+	int p = S.n_cols;
+	log_det_sympd(ldet, S);
+	res = 0.5 * arma::as_scalar(r.t() * S * r) + 0.5 * ldet + 0.5*p*log2pi;
+	return res;
+}
+
 

@@ -40,5 +40,6 @@ double elbo_pmf(arma::mat X, arma::mat V, arma::mat XV,
 
 // Log of Gaussian normalizing constant (used for EP marginal likelihood)
 double lPsi(const arma::vec& r, const arma::mat& Q);
+double lPsi_cov(const arma::vec& r, const arma::mat& S);
 
 #endif // VIORD_UTILS_H

@@ -23,7 +23,7 @@ Rcpp::List ep_ordinal(
 		const arma::vec& alpha, // (tresholds)
 		const arma::vec& mu0, // prior mean
 		const arma::mat& S0, // prior variance
-		const arma::mat& Q0, // prior variance
+		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
 		const bool verbose=false, // print information
@@ -46,24 +46,27 @@ Rcpp::List ep_ordinal(
 
 
 
-	arma::vec Z(n, arma::fill::zeros); // marginal likelihood
+	arma::vec logZ(n, arma::fill::zeros); // marginal likelihood
 
 	// EP parameters
 	// initialized from the prior
 	arma::mat S_ep = S0;
-	arma::mat Q_ep(p,p);
-	Q_ep = Q0; 
+//	arma::mat Q_ep(p,p);
+//	Q_ep = Q0; 
 
-	arma::vec r_ep = Q_ep*mu0;
+	arma::vec r_ep = S_ep*mu0;
 	arma::vec S_ep_xi(p); // S_ep x_i
 
-	double z0 = lPsi(r_ep,Q_ep); // compute if missing
+	//double z0 = lPsi(r_ep,Q_ep); // since r_ep = r_0 and Q_ep = Q0, this is the prior contribution 
+	double z0 = lPsi_cov(r_ep, S_ep); // since r_ep = r_0 and Q_ep = Q0, this is the prior contribution 
 	
 	// Remove 2pi factor since does not depend on pars and simplifies at each step
 	z0 -=  0.5*p*log(2*M_PI);
 	
-	// initialize logdeterminat
-	double logd_Qep = z0;
+	// initialize log-determinat of precision (compute from variance and change sign)
+	double logd_Qep;
+	log_det_sympd(logd_Qep, S_ep);
+	logd_Qep = -1.0*logd_Qep;
 
 
 	// Cavity parameters
@@ -143,25 +146,25 @@ Rcpp::List ep_ordinal(
 				//Rcout << "k(i): " << k(i) << std::endl;
 
 
+				//double dup = trunc_log(1 + (k(i) - k_old) * arma::as_scalar(X.row(i) * S_ep * X.row(i).t()));
+
 				w(i) = xi_Si_mi * k(i) - zeta1(Ui,Vi) * sisq;
 
-				S_ep = Si - (Si_xi * Si_xi.t()) * (z / si);
-				r_ep = r_i + w(i) * X.row(i).t();
-				//
-				// log(1+x)
+				// update determinant
 				double dup = trunc_log(1 + (k(i) - k_old) * arma::as_scalar(X.row(i) * S_ep * X.row(i).t()));
-//				if(std::isnan(dup)) dup = 0.0;
+				if(std::isnan(dup)) dup = 0.0;
 				logd_Qep += dup; 
 
+				// Update moments
+				S_ep = Si - (Si_xi * Si_xi.t()) * (z / si);
+				r_ep = r_i + w(i) * X.row(i).t();
+
 				// Update marginal likelihood
-				Z(i) = -trunc_log(R::pnorm(Vi, 0.0, 1.0, TRUE, FALSE) - R::pnorm(Ui, 0.0, 1.0, TRUE, FALSE));
+				logZ(i) = -trunc_log(R::pnorm(Vi, 0.0, 1.0, TRUE, FALSE) - R::pnorm(Ui, 0.0, 1.0, TRUE, FALSE));
 				//Z(i) = -trunc_log(arma::normcdf(Vi) - arma::normcdf(Ui));
-				// Avoid inversion
-				//Z(i) += (lPsi(r_ep, Q_ep) - lPsi(rmi, Qmi));
-				// Include contribution of quadratic terms
 				di = 1.0 / (1.0 + k(i) * xi_Si_xi) * (2*w(i) * xi_Si_mi + (w(i) * w(i)) * xi_Si_xi - k(i) * xi_Si_mi * xi_Si_mi);
 				// check before adding for large p
-				Z(i) += (0.5 * di + 0.5 *trunc_log(1+k(i)*xi_Si_xi));
+				logZ(i) += (0.5 * di - 0.5 *trunc_log(1+k(i)*xi_Si_xi));
 			}
 
 
@@ -169,11 +172,10 @@ Rcpp::List ep_ordinal(
 
 
 		// compute log p_ep(y)
-		z_ep = -1.0 * (z0 + sum(Z));
-		z_ep += 0.5 * arma::as_scalar(r_ep.t() * S_ep * r_ep);
-		z_ep -= 0.5 * logd_Qep;
+		z_ep = 0.5 * arma::as_scalar(r_ep.t() * S_ep * r_ep) - 0.5 * logd_Qep;
+		z_ep -= (z0 + sum(logZ));
 
-		// (alternatively, posterior mean)
+		// (alternatively, check convergenge of posterior means)
 		err = arma::sum(std::abs(z_ep_old - z_ep));
 		conv = (err < tresh);
 		z_seq(it) = z_ep;
@@ -196,7 +198,7 @@ Rcpp::List ep_ordinal(
 		out["logZ_seq"] = z_seq.subvec(0,it-1);
 		out["w"] = w.col(0); // return (nx1) matr as vectors
 		out["k"] = k.col(0);
-		out["Z"] = Z.col(0);
+		out["Z"] = logZ.col(0);
 		out["logd_Qep"] = logd_Qep;
 		out["logZ"] = z_ep;
 
