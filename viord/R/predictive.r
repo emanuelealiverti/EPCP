@@ -6,7 +6,7 @@
 #'
 #' Depending on the inference algorithm used to fit the model:
 #' \itemize{
-#'   \item For EP and MF methods, predictive probabilities are
+#'   \item For EP, MF, and VB_prior methods, predictive probabilities are
 #'   obtained analytically since the approximate posterior  is Gaussian
 #'   \item For the PMF method, predictive probabilities are computed
 #'   using a Monte Carlo procedure based on truncated normal sampling.
@@ -14,6 +14,8 @@
 #'
 #' @param object A fitted model of class \code{"viord"}.
 #' @param Xn A numeric matrix of new covariate values (one row per observation).
+#' @param Zn Optional random-effects design matrix for new observations. Required
+#'   for \code{VB_prior} fits that used random effects.
 #' @param Y (PMF only) The ordinal response used in fitting the model.
 #' @param X (PMF only) The design matrix used in fitting the model.
 #' @param prior (PMF only) A list containing the prior specification
@@ -44,7 +46,7 @@
 #' }
 #'
 #' @export
-predict.viord <- function(object, Xn, Y = NULL, X = NULL, prior = NULL,
+predict.viord <- function(object, Xn, Zn = NULL, Y = NULL, X = NULL, prior = NULL,
                           nMC = 1e3, type = c("class", "prob"), ...) {
   type <- match.arg(type)
   method <- toupper(object$algorithm)
@@ -68,7 +70,23 @@ predict.viord <- function(object, Xn, Y = NULL, X = NULL, prior = NULL,
       nMC = nMC
     )
 
-  } else if (method %in% c("MF", "EP")) {
+  } else if (method == "VB_PRIOR" && !is.null(object$est$m_u) &&
+             length(object$est$m_u) > 0) {
+    if (is.null(Zn)) {
+      stop("Zn must be provided for VB_prior prediction when the model has random effects.")
+    }
+    if (!is.matrix(Zn) || !is.numeric(Zn) || NROW(Zn) != NROW(Xn) ||
+        NCOL(Zn) != length(object$est$m_u)) {
+      stop("Zn must be a numeric matrix with nrow(Xn) rows and length(object$est$m_u) columns.")
+    }
+    pred <- pred_gauss(
+      Xn = cbind(Xn, Zn),
+      tresh = tresh,
+      m = object$est$m_joint,
+      R = object$est$S_joint
+    )
+
+  } else if (method %in% c("MF", "EP", "VB_PRIOR")) {
     m <- object$est$m
     S <- object$est$S
     pred <- pred_gauss(
@@ -79,7 +97,7 @@ predict.viord <- function(object, Xn, Y = NULL, X = NULL, prior = NULL,
     )
 
   } else {
-    stop("Unknown method: must be one of 'PMF', 'MF', or 'EP'.")
+    stop("Unknown method: must be one of 'PMF', 'MF', 'VB_prior', or 'EP'.")
   }
 
   if (type == "class") {
@@ -113,7 +131,7 @@ pred_pmf = function(Y, X, tresh, Xn, prior,  xiZ, sigmaZ, nMC = 1e3) {
 	Hnp = Xn %*% V %*% (prior$Q0 %*% prior$mu0)
 	ZMC = matrix(0, NROW(X), nMC)
 	for(i in 1:NROW(X)){
-		ZMC[i,] = rtruncnorm(nMC,a = li[i],b =  ui[i], mean = xiZ[i], sd = sigmaZ[i])
+		ZMC[i,] = truncnorm::rtruncnorm(nMC,a = li[i],b =  ui[i], mean = xiZ[i], sd = sigmaZ[i])
 	}
 	sc = sqrt(1 + rowSums((Xn %*% V)  * Xn))
 

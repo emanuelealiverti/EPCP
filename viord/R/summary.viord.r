@@ -4,6 +4,8 @@
 #' uncertainty, and approximate log marginal likelihood.
 #'
 #' @param object An object of class \code{"viord"}.
+#' @param ci Logical. If \code{TRUE}, include credible intervals in the
+#'   coefficient table.
 #' @param level Confidence level for credible intervals (default 0.95).
 #' @param ... Additional arguments (ignored).
 #'
@@ -57,12 +59,41 @@ summary.viord <- function(object, ci = FALSE, level = 0.95, ...) {
     log_marginal_lik <- NA_real_
     algorithm <- "Unknown"
   }
+  if (!is.null(object$algorithm))
+    algorithm <- object$algorithm
+
+  sigma_b2 <- NULL
+  if (!is.null(est$sigma_b2_a) && !is.null(est$sigma_b2_b)) {
+    sigma_b2 <- matrix(c(est$sigma_b2_a,
+                         est$sigma_b2_b,
+                         est$sigma_b2_mean,
+                         est$sigma_b2_inv_mean),
+                       nrow = 1)
+    colnames(sigma_b2) <- c("a", "b", "Mean", "E[1/sigma2]")
+    rownames(sigma_b2) <- "sigma_b2"
+  }
+
+  sigma_u2 <- NULL
+  if (!is.null(est$sigma_u2_a) && length(est$sigma_u2_a) > 0) {
+    sigma_u2 <- cbind(est$sigma_u2_a,
+                      est$sigma_u2_b,
+                      est$sigma_u2_mean,
+                      est$sigma_u2_inv_mean)
+    colnames(sigma_u2) <- c("a", "b", "Mean", "E[1/sigma2]")
+    u_group_labels <- est$u_group
+    if (!is.null(object$Z_group)) {
+      u_group_labels <- unique(as.character(object$Z_group))
+    }
+    rownames(sigma_u2) <- paste0("sigma_u2[", u_group_labels, "]")
+  }
 
   out <- list(
     coefficients = coef_table,
     thresholds = thresholds,
     log_marginal_lik = log_marginal_lik,
     algorithm = algorithm,
+    sigma_b2 = sigma_b2,
+    sigma_u2 = sigma_u2,
     n_it = est$it
   )
   class(out) <- "summary.viord"
@@ -79,6 +110,18 @@ print.summary.viord <- function(x, digits = max(3L, getOption("digits") - 3L), .
   if (!is.null(x$thresholds)) {
     cat("\nThreshold parameters (cutpoints):\n")
     print(noquote(format(round(x$thresholds, digits = digits), nsmall = 3, justify = "right")))
+  }
+
+  if (!is.null(x$sigma_b2)) {
+    cat("\nFixed-effect variance sigma_b2 posterior:\n")
+    print(noquote(format(round(x$sigma_b2, digits = digits),
+                         nsmall = 3, justify = "right")))
+  }
+
+  if (!is.null(x$sigma_u2)) {
+    cat("\nRandom-effect variance posterior:\n")
+    print(noquote(format(round(x$sigma_u2, digits = digits),
+                         nsmall = 3, justify = "right")))
   }
 
   cat(sprintf("\nConverged in %s iterations. ",x$n_it))
@@ -132,5 +175,3 @@ vcov.viord <- function(object, what = c("beta", "alpha"), ...) {
     stop("No covariance matrix stored for 'alpha' parameters.")
   }
 }
-
-

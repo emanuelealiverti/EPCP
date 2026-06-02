@@ -9,13 +9,16 @@
 #' original data (\code{Y}, \code{X}) and the prior specification used for model fitting.
 #' The sampling relies on independent truncated normal draws from the optimal density \eqn{q^\star_{\tiny PMF}(z)}
 #'
-#' For models estimated using \emph{Expectation Propagation (EP)} or
-#' \emph{Mean-Field (MF)}, the approximate posterior of \eqn{\beta}
+#' For models estimated using \emph{Expectation Propagation (EP)},
+#' \emph{Mean-Field (MF)}, or \code{VB_prior}, the approximate posterior of \eqn{\beta}
 #' is Gaussian with mean \code{object$est$m} and covariance \code{object$est$S};
 #' hence, posterior samples are drawn directly from this multivariate normal
 #' distribution.
 #'
 #' @param object A fitted object of class \code{"viord"}.
+#' @param nsim Integer. Number of posterior samples requested by the
+#'   \code{\link[stats]{simulate}} generic.
+#' @param seed Optional random seed.
 #' @param Y Optional. Ordinal response vector (factor or integer) required
 #'   only if \code{object$algorithm == "PMF"}.
 #' @param X Optional. Design matrix used in the model, required only if
@@ -23,7 +26,8 @@
 #' @param prior Optional. A list containing prior quantities
 #'   (\code{mu0}, \code{S0}, \code{Q0}), required only if
 #'   \code{object$algorithm == "PMF"}.
-#' @param nMC Integer. Number of Monte Carlo samples to draw (default \code{1e3}).
+#' @param nMC Integer. Number of Monte Carlo samples to draw. Defaults to
+#'   \code{nsim}.
 #' @param ... Additional arguments (ignored).
 #'
 #' @return
@@ -57,12 +61,15 @@
 #' }
 #'
 #' @export
-simulate.viord = function(object, Y, X, prior, nMC = 1e3) {
+simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
+			  prior = NULL, nMC = nsim, ...) {
+	if(!is.null(seed)){
+		set.seed(seed)
+	}
 	method = toupper(object$algorithm)
 
 	if (method == "PMF") {
 		# --- PMF: sample from truncated normals ---
-		require(truncnorm)
 		tresh = object$alpha
 		xiZ = object$est$xiZ
 		sigmaZ = object$est$sigmaZ
@@ -76,7 +83,7 @@ simulate.viord = function(object, Y, X, prior, nMC = 1e3) {
 
 		ZMC = matrix(0, nrow(X), nMC)
 		for (i in seq_len(nrow(X))) {
-			ZMC[i, ] = rtruncnorm(
+			ZMC[i, ] = truncnorm::rtruncnorm(
 					       nMC,
 					       a = li[i],
 					       b = ui[i],
@@ -93,8 +100,8 @@ simulate.viord = function(object, Y, X, prior, nMC = 1e3) {
 		gc()
 		out = t(beta_samp)
 
-	} else if (method %in% c("MF", "EP")) {
-		# --- MF and EP: Gaussian sampling from N(m, S) ---
+	} else if (method %in% c("MF", "EP", "VB_PRIOR")) {
+		# --- MF, VB_prior and EP: Gaussian sampling from N(m, S) ---
 		m = object$est$m
 		S = object$est$S
 		L = chol(S)
@@ -108,7 +115,7 @@ simulate.viord = function(object, Y, X, prior, nMC = 1e3) {
 		out = beta_samp
 
 	} else {
-		stop("Unknown method: must be one of 'PMF', 'MF', or 'EP'.")
+		stop("Unknown method: must be one of 'PMF', 'MF', 'VB_prior', or 'EP'.")
 	}
 
 	class(out) = c("simulate_viord", class(out))

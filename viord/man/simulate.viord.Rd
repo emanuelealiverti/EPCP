@@ -4,10 +4,24 @@
 \alias{simulate.viord}
 \title{Posterior Sampling from a Fitted \code{viord} Model}
 \usage{
-\method{simulate}{viord}(object, Y, X, prior, nMC = 1000)
+\method{simulate}{viord}(
+  object,
+  nsim = 1,
+  seed = NULL,
+  Y = NULL,
+  X = NULL,
+  prior = NULL,
+  nMC = nsim,
+  ...
+)
 }
 \arguments{
 \item{object}{A fitted object of class \code{"viord"}.}
+
+\item{nsim}{Integer. Number of posterior samples requested by the
+\code{\link[stats]{simulate}} generic.}
+
+\item{seed}{Optional random seed.}
 
 \item{Y}{Optional. Ordinal response vector (factor or integer) required
 only if \code{object$algorithm == "PMF"}.}
@@ -19,7 +33,8 @@ only if \code{object$algorithm == "PMF"}.}
 (\code{mu0}, \code{S0}, \code{Q0}), required only if
 \code{object$algorithm == "PMF"}.}
 
-\item{nMC}{Integer. Number of Monte Carlo samples to draw (default \code{1e3}).}
+\item{nMC}{Integer. Number of Monte Carlo samples to draw. Defaults to
+\code{nsim}.}
 
 \item{...}{Additional arguments (ignored).}
 }
@@ -38,8 +53,8 @@ chatacterize the marginal approximate posterior of \eqn{\beta}. In this case, th
 original data (\code{Y}, \code{X}) and the prior specification used for model fitting.
 The sampling relies on independent truncated normal draws from the optimal density \eqn{q^\star_{\tiny PMF}(z)}
 
-For models estimated using \emph{Expectation Propagation (EP)} or
-\emph{Mean-Field (MF)}, the approximate posterior of \eqn{\beta}
+For models estimated using \emph{Expectation Propagation (EP)},
+\emph{Mean-Field (MF)}, or \code{VB_prior}, the approximate posterior of \eqn{\beta}
 is Gaussian with mean \code{object$est$m} and covariance \code{object$est$S};
 hence, posterior samples are drawn directly from this multivariate normal
 distribution.

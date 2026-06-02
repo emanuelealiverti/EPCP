@@ -9,6 +9,9 @@
 \arguments{
 \item{object}{An object of class \code{"viord"}.}
 
+\item{ci}{Logical. If \code{TRUE}, include credible intervals in the
+coefficient table.}
+
 \item{level}{Confidence level for credible intervals (default 0.95).}
 
 \item{...}{Additional arguments (ignored).}
@@ -18,5 +21,6 @@ An object of class \code{"summary.viord"}.
 }
 \description{
 Summarizes the fitted variational ordinal model, showing posterior estimates,
-uncertainty, and approximate log marginal likelihood.
+uncertainty, approximate log marginal likelihood, and the posterior
+inverse-gamma parameters for \code{VB_prior} fits.
 }

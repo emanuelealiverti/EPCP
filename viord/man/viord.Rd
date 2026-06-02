@@ -8,7 +8,9 @@ viord(
   Y,
   X,
   prior,
-  algorithm = c("EP", "MF", "PMF"),
+  Z = NULL,
+  Z_group = NULL,
+  algorithm = c("EP", "MF", "PMF", "VB_prior"),
   maxit = 100,
   conv_tr = 1e-06
 )
@@ -18,11 +20,25 @@ viord(
 
 \item{X}{Design matrix of covariates.}
 
-\item{prior}{A list containing prior parameters:
-\code{mu0} (prior mean), \code{S0} (prior covariance), and \code{Q0} (prior precision matrix).}
+\item{Z}{Optional random-effects design matrix. Random-effect structures can
+be column-bound in R before calling \code{viord}; columns belonging to the
+same variance component are identified by \code{Z_group}.}
+
+\item{Z_group}{Optional vector of length \code{ncol(Z)} indicating the
+variance-component group for each column of \code{Z}. Currently used only
+with \code{algorithm = "VB_prior"}.}
+
+\item{prior}{A list containing prior parameters. For \code{"EP"}, \code{"MF"},
+and \code{"PMF"}, provide \code{mu0} (prior mean), \code{S0} (prior
+covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"},
+provide \code{mu0}, \code{a0}, and \code{b0}, corresponding to
+\eqn{\beta \mid \sigma_b^2 \sim N(\mu_0, \sigma_b^2 I_p)} and
+\eqn{\sigma_b^2 \sim IG(a_0, b_0)}. If \code{Z} is supplied, also provide
+\code{au0} and \code{bu0} for the random-effect variance components
+\eqn{\sigma_{u,j}^2 \sim IG(a_{u0}, b_{u0})}.}
 
 \item{algorithm}{Character string specifying the inference algorithm to use:
-one of \code{"EP"}, \code{"MF"}, or \code{"PMF"}.}
+one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, or \code{"VB_prior"}.}
 
 \item{maxit}{Integer specifying the maximum number of iterations used in both
 the alternating optimization of the thresholds and the internal optimization
@@ -38,14 +54,16 @@ A list containing the estimated model quantities and convergence information.
     \item \code{est}: posterior (approximate) mean vector \eqn{m} and covariance matrix \eqn{S};
     \item \code{alpha}: estimated thresholds (cutoffs);
     \item \code{algorithm}: the selected inference algorithm;
+    \item \code{prior}: the prior provided as input
     \item additional fields used for convergence diagnostics and summaries.
   }
 }
 \description{
 Provides a unified interface for scalable approximate Bayesian inference under
-the cumulative probit model using one of three algorithms:
-\emph{Expectation Propagation (EP)}, \emph{Mean-Field Variational Bayes (MF)}, or
-\emph{Partially Factorized Mean-Field (PMF)}.
+the cumulative probit model using one of four algorithms:
+\emph{Expectation Propagation (EP)}, \emph{Mean-Field Variational Bayes (MF)},
+\emph{Partially Factorized Mean-Field (PMF)}, or a mean-field VB method with
+an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}).
 }
 \details{
 Threshold (cutoff) parameters are estimated via approximate marginal likelihood,
@@ -62,7 +80,13 @@ The model is specified as
   \Pr(y_i \leq k) = \Phi(\alpha_k - x_i^\top \beta),
 }
 where \eqn{\Phi(\cdot)} denotes the standard normal cumulative distribution function.
-A Gaussian prior \eqn{\beta \sim N_p(\mu_0, S_0)} is assumed for the regression coefficients.
+A Gaussian prior \eqn{\beta \sim N_p(\mu_0, S_0)} is assumed for the regression coefficients
+under \code{"EP"}, \code{"MF"}, and \code{"PMF"}. Under \code{"VB_prior"},
+the fixed-effect prior is
+\eqn{\beta \mid \sigma_b^2 \sim N_p(\mu_0, \sigma_b^2 I_p)}
+with \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. If \code{Z} is supplied, the
+random-effect coefficients have independent group-specific priors
+\eqn{u_j \mid \sigma_{u,g(j)}^2 \sim N(0, \sigma_{u,g(j)}^2)}.
 The thresholds \eqn{\alpha_1 < \dots < \alpha_{K-1}} are treated as nuisance parameters
 and estimated by maximizing the (approximate) marginal likelihood.
 
@@ -71,7 +95,9 @@ for inference conditional on the current thresholds:
 \itemize{
   \item \code{"EP"} – Expectation Propagation;
   \item \code{"MF"} – Mean-Field Variational Bayes;
-  \item \code{"PMF"} – Partially Factorized Mean-Field Variational Bayes.
+  \item \code{"PMF"} – Partially Factorized Mean-Field Variational Bayes;
+  \item \code{"VB_prior"} – Mean-Field Variational Bayes with an
+    inverse-gamma update for the prior variances.
 }
 }
 \examples{

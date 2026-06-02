@@ -7,6 +7,7 @@
 \method{predict}{viord}(
   object,
   Xn,
+  Zn = NULL,
   Y = NULL,
   X = NULL,
   prior = NULL,
@@ -19,6 +20,9 @@
 \item{object}{A fitted model of class \code{"viord"}.}
 
 \item{Xn}{A numeric matrix of new covariate values (one row per observation).}
+
+\item{Zn}{Optional random-effects design matrix for new observations. Required
+for \code{VB_prior} fits that used random effects.}
 
 \item{Y}{(PMF only) The ordinal response used in fitting the model.}
 
@@ -50,7 +54,7 @@ observations from a fitted variational ordinal regression model.
 
 Depending on the inference algorithm used to fit the model:
 \itemize{
-  \item For EP and MF methods, predictive probabilities are
+  \item For EP, MF, and VB_prior methods, predictive probabilities are
   obtained analytically since the approximate posterior  is Gaussian
   \item For the PMF method, predictive probabilities are computed
   using a Monte Carlo procedure based on truncated normal sampling.
