@@ -80,17 +80,17 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 
 	check_mu0()
 
-	if(algorithm == "VB_prior"){
+	if(algorithm %in% c("VB_prior", "PMF_prior")){
 		if(is.null(prior$a0) || is.null(prior$b0)){
-			stop("For VB_prior, prior must contain mu0, a0, and b0.")
+			stop(sprintf("For %s, prior must contain mu0, a0, and b0.", algorithm))
 		}
 		if(!is.numeric(prior$a0) || length(prior$a0) != 1 || !is.finite(prior$a0) || prior$a0 <= 0){
-			stop("For VB_prior, prior$a0 must be a strictly positive finite number.")
+			stop(sprintf("For %s, prior$a0 must be a strictly positive finite number.", algorithm))
 		}
 		if(!is.numeric(prior$b0) || length(prior$b0) != 1 || !is.finite(prior$b0) || prior$b0 <= 0){
-			stop("For VB_prior, prior$b0 must be a strictly positive finite number.")
+			stop(sprintf("For %s, prior$b0 must be a strictly positive finite number.", algorithm))
 		}
-		if(has_random){
+		if(algorithm == "VB_prior" && has_random){
 			if(is.null(prior$au0) || is.null(prior$bu0)){
 				stop("For VB_prior with random effects, prior must contain au0 and bu0.")
 			}
@@ -156,7 +156,7 @@ optim_vb_ml = function(Y,X,prior,
 		       method = 'grad', vb_factor = "MF", full_path = F,
 		       Z = NULL, Z_group = NULL){
 
-	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior"))
+	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior", "PMF_prior"))
 	random = check_random_effects(Z = Z, Z_group = Z_group, n = NROW(X))
 	if(random$has_random && vb_factor != "VB_prior"){
 		stop("Z and Z_group are currently supported only with algorithm = 'VB_prior'.")
@@ -194,23 +194,32 @@ optim_vb_ml = function(Y,X,prior,
 					bu0 = bu0,
 					maxit = maxit,
 					full_out = T)
+		} else if(vb_factor == "PMF_prior"){
+			tmp = pmf_ordinal_prior(Y = as.numeric(Y),
+					X = X,
+					alpha = c(-Inf, alpha, Inf),
+					mu0 = prior$mu0,
+					a0 = prior$a0,
+					b0 = prior$b0,
+					maxit = maxit,
+					full_out = T)
 		} else {
 			tmp = switch(vb_factor,
 				     MF = vb_ordinal(Y = as.numeric(Y),
 						      X = X,
-						      alpha = c(-Inf, alpha, Inf), 
+						      alpha = c(-Inf, alpha, Inf),
 						      mu0 = prior$mu0,
 						      S0 = prior$S0,
 						      Q0 = prior$Q0,
-						      maxit = maxit, 
+						      maxit = maxit,
 						      full_out = T),
 				     PMF = pmf_ordinal(Y = as.numeric(Y),
 							X = X,
-							alpha = c(-Inf, alpha, Inf), 
+							alpha = c(-Inf, alpha, Inf),
 							mu0 = prior$mu0,
 							S0 = prior$S0,
 							Q0 = prior$Q0,
-							maxit = maxit, 
+							maxit = maxit,
 							full_out = T))
 		}
 		ll = tmp$elbo
@@ -222,7 +231,7 @@ optim_vb_ml = function(Y,X,prior,
 		it = it + 1
 		ll_old = ll
 #		cat(it)
-		if(vb_factor %in% c("PMF", "MIX")){
+		if(vb_factor %in% c("PMF", "PMF_prior", "MIX")){
 			muZ = lp
 			sigmaZ = tmp$sigmaZ
 		}

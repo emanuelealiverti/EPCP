@@ -1,10 +1,11 @@
 #' Approximate Bayesian Inference for Cumulative Probit Models
 #'
 #' Provides a unified interface for scalable approximate Bayesian inference under
-#' the cumulative probit model using one of four algorithms:
+#' the cumulative probit model using one of five algorithms:
 #' \emph{Expectation Propagation (EP)}, \emph{Mean-Field Variational Bayes (MF)},
-#' \emph{Partially Factorized Mean-Field (PMF)}, or a mean-field VB method with
-#' an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}).
+#' \emph{Partially Factorized Mean-Field (PMF)}, a mean-field VB method with
+#' an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}), or
+#' the PMF counterpart with an inverse-gamma prior (\code{PMF_prior}).
 #'
 #' Threshold (cutoff) parameters are estimated via approximate marginal likelihood,
 #' alternating between the optimization of the thresholds (via Newton–Raphson steps)
@@ -22,14 +23,14 @@
 #'   with \code{algorithm = "VB_prior"}.
 #' @param prior A list containing prior parameters. For \code{"EP"}, \code{"MF"},
 #'   and \code{"PMF"}, provide \code{mu0} (prior mean), \code{S0} (prior
-#'   covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"},
-#'   provide \code{mu0}, \code{a0}, and \code{b0}, corresponding to
-#'   \eqn{\beta \mid \sigma_b^2 \sim N(\mu_0, \sigma_b^2 I_p)} and
-#'   \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. If \code{Z} is supplied, also provide
-#'   \code{au0} and \code{bu0} for the random-effect variance components
-#'   \eqn{\sigma_{u,j}^2 \sim IG(a_{u0}, b_{u0})}.
+#'   covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"}
+#'   and \code{"PMF_prior"}, provide \code{mu0}, \code{a0}, and \code{b0},
+#'   corresponding to \eqn{\beta \mid \sigma_b^2 \sim N(\mu_0, \sigma_b^2 I_p)}
+#'   and \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. For \code{"VB_prior"} with random
+#'   effects, also provide \code{au0} and \code{bu0}.
 #' @param algorithm Character string specifying the inference algorithm to use:
-#'   one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, or \code{"VB_prior"}.
+#'   one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, \code{"VB_prior"}, or
+#'   \code{"PMF_prior"}.
 #' @param maxit Integer specifying the maximum number of iterations used in both
 #'   the alternating optimization of the thresholds and the internal optimization
 #'   based on the selected approximation algorithm.
@@ -70,7 +71,9 @@
 #'   \item \code{"MF"} – Mean-Field Variational Bayes;
 #'   \item \code{"PMF"} – Partially Factorized Mean-Field Variational Bayes;
 #'   \item \code{"VB_prior"} – Mean-Field Variational Bayes with an
-#'     inverse-gamma update for the prior variances.
+#'     inverse-gamma update for the prior variances;
+#'   \item \code{"PMF_prior"} – Partially Factorized Mean-Field with an
+#'     inverse-gamma update for the prior variance.
 #' }
 #'
 #' @references
@@ -115,7 +118,7 @@
 #' @export
 viord = function(Y, X, prior,
                  Z = NULL, Z_group = NULL,
-                 algorithm = c("EP", "MF", "PMF", "VB_prior"),
+                 algorithm = c("EP", "MF", "PMF", "VB_prior", "PMF_prior"),
                  maxit = 100, conv_tr = 1e-6) {
 
   algorithm <- match.arg(algorithm)
@@ -129,9 +132,10 @@ viord = function(Y, X, prior,
 
   } else {
     vb_factor <- switch(algorithm,
-                        MF = "MF",
-                        PMF = "PMF",
-                        VB_prior = "VB_prior")
+                        MF        = "MF",
+                        PMF       = "PMF",
+                        VB_prior  = "VB_prior",
+                        PMF_prior = "PMF_prior")
     out <- optim_vb_ml(Y = Y, X = X, prior = prior,
                        maxit = maxit, conv_tr = conv_tr,
                        vb_factor = vb_factor,

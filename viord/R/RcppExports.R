@@ -5,6 +5,10 @@ ep_ordinal <- function(Y, X, alpha, mu0, S0, Q0, maxit = 100L, tresh = 1e-6, ver
     .Call('_viord_ep_ordinal', PACKAGE = 'viord', Y, X, alpha, mu0, S0, Q0, maxit, tresh, verbose, full_out)
 }
 
+pmf_ordinal_prior <- function(Y, X, alpha, mu0, a0, b0, maxit = 100L, tresh = 1e-6, verbose = FALSE, full_out = FALSE) {
+    .Call('_viord_pmf_ordinal_prior', PACKAGE = 'viord', Y, X, alpha, mu0, a0, b0, maxit, tresh, verbose, full_out)
+}
+
 vb_ordinal_prior <- function(Y, X, alpha, mu0, a0, b0, Z, Z_group, au0 = NA_real_, bu0 = NA_real_, maxit = 100L, tresh = 1e-6, verbose = FALSE, full_out = FALSE) {
     .Call('_viord_vb_ordinal_prior', PACKAGE = 'viord', Y, X, alpha, mu0, a0, b0, Z, Z_group, au0, bu0, maxit, tresh, verbose, full_out)
 }

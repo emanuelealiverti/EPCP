@@ -68,18 +68,27 @@ simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
 	}
 	method = toupper(object$algorithm)
 
-	if (method == "PMF") {
-		# --- PMF: sample from truncated normals ---
-		tresh = object$alpha
-		xiZ = object$est$xiZ
+	if (method %in% c("PMF", "PMF_PRIOR")) {
+		# --- PMF / PMF_prior: sample from truncated normals ---
+		tresh  = object$alpha
+		xiZ    = object$est$xiZ
 		sigmaZ = object$est$sigmaZ
 
 		li = tresh[Y]
 		ui = tresh[as.numeric(Y) + 1]
-		V = solve(crossprod(X) + prior$Q0)
-		L = chol(V)
-		XV = X %*% V
-		Vprior = V %*% prior$Q0 %*% prior$mu
+
+		if (method == "PMF_PRIOR") {
+			tau_b  = object$est$sigma_b2_inv_mean
+			Q0_eff = tau_b * diag(ncol(X))
+			mu0    = object$prior$mu0
+		} else {
+			Q0_eff = prior$Q0
+			mu0    = prior$mu0
+		}
+		V      = solve(crossprod(X) + Q0_eff)
+		L      = chol(V)
+		XV     = X %*% V
+		Vprior = V %*% (Q0_eff %*% mu0)
 
 		ZMC = matrix(0, nrow(X), nMC)
 		for (i in seq_len(nrow(X))) {
@@ -92,11 +101,11 @@ simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
 			)
 		}
 
-		b0 = matrix(rnorm(nMC * ncol(X)), ncol = nMC)
+		b0_samp = matrix(rnorm(nMC * ncol(X)), ncol = nMC)
 		m = apply(ZMC, 2, function(zs) Vprior + t(XV) %*% zs)
-		beta_samp = m + L %*% b0
+		beta_samp = m + L %*% b0_samp
 
-		rm(ZMC, b0)
+		rm(ZMC, b0_samp)
 		gc()
 		out = t(beta_samp)
 
@@ -115,7 +124,7 @@ simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
 		out = beta_samp
 
 	} else {
-		stop("Unknown method: must be one of 'PMF', 'MF', 'VB_prior', or 'EP'.")
+		stop("Unknown method: must be one of 'PMF', 'PMF_prior', 'MF', 'VB_prior', or 'EP'.")
 	}
 
 	class(out) = c("simulate_viord", class(out))

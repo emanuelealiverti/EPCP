@@ -52,19 +52,29 @@ predict.viord <- function(object, Xn, Zn = NULL, Y = NULL, X = NULL, prior = NUL
   method <- toupper(object$algorithm)
   tresh <- object$alpha
 
-  if (method == "PMF") {
-    if (is.null(Y) || is.null(X) || is.null(prior))
-      stop("For PMF prediction, you must specify Y, X, and prior.")
+  if (method %in% c("PMF", "PMF_PRIOR")) {
+    if (is.null(Y) || is.null(X))
+      stop("For PMF/PMF_prior prediction, you must specify Y and X.")
 
-    xiZ <- object$est$xiZ
+    xiZ    <- object$est$xiZ
     sigmaZ <- object$est$sigmaZ
+
+    if (method == "PMF_PRIOR") {
+      tau_b      <- object$est$sigma_b2_inv_mean
+      prior_pred <- list(mu0 = object$prior$mu0,
+                         Q0  = tau_b * diag(ncol(X)))
+    } else {
+      if (is.null(prior))
+        stop("For PMF prediction, you must specify prior.")
+      prior_pred <- prior
+    }
 
     pred <- pred_pmf(
       Y = Y,
       X = X,
       tresh = tresh,
       Xn = Xn,
-      prior = prior,
+      prior = prior_pred,
       xiZ = xiZ,
       sigmaZ = sigmaZ,
       nMC = nMC
@@ -97,7 +107,7 @@ predict.viord <- function(object, Xn, Zn = NULL, Y = NULL, X = NULL, prior = NUL
     )
 
   } else {
-    stop("Unknown method: must be one of 'PMF', 'MF', 'VB_prior', or 'EP'.")
+    stop("Unknown method: must be one of 'PMF', 'PMF_prior', 'MF', 'VB_prior', or 'EP'.")
   }
 
   if (type == "class") {

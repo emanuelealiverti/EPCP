@@ -31,6 +31,26 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// pmf_ordinal_prior
+Rcpp::List pmf_ordinal_prior(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const double a0, const double b0, const int maxit, const double tresh, const bool verbose, const bool full_out);
+RcppExport SEXP _viord_pmf_ordinal_prior(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type alpha(alphaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type mu0(mu0SEXP);
+    Rcpp::traits::input_parameter< const double >::type a0(a0SEXP);
+    Rcpp::traits::input_parameter< const double >::type b0(b0SEXP);
+    Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
+    Rcpp::traits::input_parameter< const double >::type tresh(treshSEXP);
+    Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
+    Rcpp::traits::input_parameter< const bool >::type full_out(full_outSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmf_ordinal_prior(Y, X, alpha, mu0, a0, b0, maxit, tresh, verbose, full_out));
+    return rcpp_result_gen;
+END_RCPP
+}
 // vb_ordinal_prior
 Rcpp::List vb_ordinal_prior(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const double a0, const double b0, const arma::mat& Z, const arma::uvec& Z_group, const double au0, const double bu0, const int maxit, const double tresh, const bool verbose, const bool full_out);
 RcppExport SEXP _viord_vb_ordinal_prior(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP ZSEXP, SEXP Z_groupSEXP, SEXP au0SEXP, SEXP bu0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
@@ -98,6 +118,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_viord_ep_ordinal", (DL_FUNC) &_viord_ep_ordinal, 10},
+    {"_viord_pmf_ordinal_prior", (DL_FUNC) &_viord_pmf_ordinal_prior, 10},
     {"_viord_vb_ordinal_prior", (DL_FUNC) &_viord_vb_ordinal_prior, 14},
     {"_viord_vb_ordinal", (DL_FUNC) &_viord_vb_ordinal, 10},
     {"_viord_pmf_ordinal", (DL_FUNC) &_viord_pmf_ordinal, 10},
