@@ -241,7 +241,7 @@ fit <- viord(Y       = df$Yt,
              control   = viord.control(tol_inner   = 1e-7,
                                        tol_outer   = 1e-7,
                                        maxit_inner = 200,
-                                       maxit_outer = 200))
+                                       maxit_outer = 500))
 
 summary(fit)
 ```

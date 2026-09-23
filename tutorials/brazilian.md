@@ -142,15 +142,15 @@ summary(pmf_tmp)
     ## 
     ## Posterior estimates:
     ##            Estimate Std. Error
-    ## age         0.5502   0.1006   
+    ## age         0.5503   0.1006   
     ## genderMale  0.2111   0.0992   
-    ## pincome    -0.1835   0.0982   
+    ## pincome    -0.1836   0.0982   
     ## 
     ## Threshold parameters (cutpoints):
     ##          Estimate
-    ## alpha[1] -1.1894 
-    ## alpha[2] -0.7600 
-    ## alpha[3]  0.0658 
+    ## alpha[1] -1.1896 
+    ## alpha[2] -0.7603 
+    ## alpha[3]  0.0654 
     ## 
     ## Converged in 2 iterations. Approx. log marginal likelihood: -590.1
 

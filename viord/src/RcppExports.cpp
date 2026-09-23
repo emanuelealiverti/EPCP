@@ -57,6 +57,22 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// newton_thresholds
+Rcpp::List newton_thresholds(const arma::ivec& y, const arma::vec& xi, const arma::vec& sigma, const arma::vec& start, const int maxit, const double tol);
+RcppExport SEXP _viord_newton_thresholds(SEXP ySEXP, SEXP xiSEXP, SEXP sigmaSEXP, SEXP startSEXP, SEXP maxitSEXP, SEXP tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::ivec& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type xi(xiSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type start(startSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
+    Rcpp::traits::input_parameter< const double >::type tol(tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(newton_thresholds(y, xi, sigma, start, maxit, tol));
+    return rcpp_result_gen;
+END_RCPP
+}
 // vb_ordinal_prior
 Rcpp::List vb_ordinal_prior(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const double a0, const double b0, const arma::mat& Z, const arma::uvec& Z_group, const double au0, const double bu0, const int maxit, const double tresh, const int min_iter, const std::string conv_crit, const bool verbose, const bool full_out, Rcpp::Nullable<Rcpp::List> init);
 RcppExport SEXP _viord_vb_ordinal_prior(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP ZSEXP, SEXP Z_groupSEXP, SEXP au0SEXP, SEXP bu0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP min_iterSEXP, SEXP conv_critSEXP, SEXP verboseSEXP, SEXP full_outSEXP, SEXP initSEXP) {
@@ -134,6 +150,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_viord_ep_ordinal", (DL_FUNC) &_viord_ep_ordinal, 11},
     {"_viord_pmf_ordinal_mixed", (DL_FUNC) &_viord_pmf_ordinal_mixed, 15},
+    {"_viord_newton_thresholds", (DL_FUNC) &_viord_newton_thresholds, 6},
     {"_viord_vb_ordinal_prior", (DL_FUNC) &_viord_vb_ordinal_prior, 17},
     {"_viord_vb_ordinal", (DL_FUNC) &_viord_vb_ordinal, 13},
     {"_viord_pmf_ordinal", (DL_FUNC) &_viord_pmf_ordinal, 13},

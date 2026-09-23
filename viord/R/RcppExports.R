@@ -9,6 +9,10 @@ pmf_ordinal_mixed <- function(Y, X, alpha, mu0, Q0, Z, Z_group, s_sigma, maxit =
     .Call('_viord_pmf_ordinal_mixed', PACKAGE = 'viord', Y, X, alpha, mu0, Q0, Z, Z_group, s_sigma, maxit, tresh, min_iter, conv_crit, verbose, full_out, init)
 }
 
+newton_thresholds <- function(y, xi, sigma, start, maxit = 50L, tol = 1e-10) {
+    .Call('_viord_newton_thresholds', PACKAGE = 'viord', y, xi, sigma, start, maxit, tol)
+}
+
 vb_ordinal_prior <- function(Y, X, alpha, mu0, a0, b0, Z, Z_group, au0 = NA_real_, bu0 = NA_real_, maxit = 100L, tresh = 1e-6, min_iter = 1L, conv_crit = "elbo", verbose = FALSE, full_out = FALSE, init = NULL) {
     .Call('_viord_vb_ordinal_prior', PACKAGE = 'viord', Y, X, alpha, mu0, a0, b0, Z, Z_group, au0, bu0, maxit, tresh, min_iter, conv_crit, verbose, full_out, init)
 }

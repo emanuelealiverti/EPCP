@@ -234,7 +234,7 @@ fit <- viord(Y       = df$Yt,
              control   = viord.control(tol_inner   = 1e-7,
                                        tol_outer   = 1e-7,
                                        maxit_inner = 200,
-                                       maxit_outer = 200))
+                                       maxit_outer = 500))
 
 summary(fit)
 ```
@@ -245,26 +245,26 @@ summary(fit)
     ## 
     ## Posterior estimates:
     ##                 Estimate Std. Error
-    ## age_lin         -0.0220   0.0349   
-    ## inc_lin          0.0291   0.1655   
-    ## DEM_GENDER_male  0.0046   0.0105   
-    ## DEM_EDU          0.1944   0.0076   
-    ## DEM_POL_right   -0.1787   0.0050   
-    ## DEM_RELIGIOUS    0.0216   0.0043   
-    ## DEM_RESIDENCE    0.1633   0.0124   
+    ## age_lin         -0.0224   0.0350   
+    ## inc_lin          0.0283   0.1651   
+    ## DEM_GENDER_male  0.0048   0.0105   
+    ## DEM_EDU          0.1965   0.0076   
+    ## DEM_POL_right   -0.1784   0.0050   
+    ## DEM_RELIGIOUS    0.0218   0.0043   
+    ## DEM_RESIDENCE    0.1637   0.0124   
     ## 
     ## Threshold parameters (cutpoints):
     ##          Estimate
-    ## alpha[1] -1.8267 
-    ## alpha[2] -1.1279 
-    ## alpha[3] -0.1419 
-    ## alpha[4]  0.9672 
+    ## alpha[1] -1.8118 
+    ## alpha[2] -1.1130 
+    ## alpha[3] -0.1270 
+    ## alpha[4]  0.9822 
     ## 
     ## Random-effect variance posterior:
     ##                   a       b       Mean    E[1/sigma2]
-    ## sigma_u2[age]      7.0000  0.0886  0.0148 78.9772    
-    ## sigma_u2[income]   7.0000 33.7530  5.6255  0.2074    
-    ## sigma_u2[country] 33.5000  2.2827  0.0702 14.6756    
+    ## sigma_u2[age]      7.0000  0.0897  0.0149 78.0459    
+    ## sigma_u2[income]   7.0000 33.5119  5.5853  0.2089    
+    ## sigma_u2[country] 33.5000  2.2710  0.0699 14.7513    
     ## 
     ## Converged in 2 iterations. Approx. log marginal likelihood: -54419
 
@@ -339,7 +339,7 @@ estimated variance of that block is small (0.015), so the smooth is
 heavily penalized towards the linear fit. The effect of log-income is
 markedly non-monotone, with several local features and a rise in the
 upper part of the distribution; its variance component is much larger
-(5.63), so the data support a genuinely wiggly shape. Fitting the same
+(5.59), so the data support a genuinely wiggly shape. Fitting the same
 model with `mgcv::gam` by REML gives the same picture, with 2.1
 effective degrees of freedom for age against 10.5 for log-income.
 
@@ -383,7 +383,7 @@ ggplot(world, aes(long, lat, group = group, fill = effect)) +
 Countries shown in red have higher-than-average climate policy support
 after conditioning on individual-level demographics; blue countries have
 lower-than-average support. The range of country effects is
-approximately (-0.72, 0.56), indicating meaningful cross-national
+approximately (-0.71, 0.57), indicating meaningful cross-national
 variation that would be ignored by a fixed-effects-only model.
 
 # References

@@ -22,6 +22,17 @@ check_spd_matrix = function(x, name, p){
 	invisible(TRUE)
 }
 
+# Starting thresholds: quantiles of the implied marginal distribution of z,
+# used only when no previous thresholds are available.
+#' @noRd
+init_alpha = function(y, loc, scale){
+	prop = cumsum(table(y)) / length(y)
+	prop = prop[-length(prop)]
+	prop = pmin(pmax(prop, 1e-6), 1 - 1e-6)
+	sd_z = sqrt(stats::var(loc) + mean(scale^2))
+	as.numeric(mean(loc) + sd_z * stats::qnorm(prop))
+}
+
 #' @noRd
 check_random_effects = function(Z = NULL, Z_group = NULL, n){
 	if(is.null(Z)){
@@ -128,10 +139,12 @@ optim_ep_ml = function(Y, X, prior, control = viord.control()){
 
 	check_prior(prior, NCOL(X), "EP")
 
-	# optimizer for alpha
-	optim_alpha = function(response, lin_pred) {
-		suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
-						  link = 'probit')$alpha)
+	# Newton-Raphson on the thresholds, warm started at the current ones. Under
+	# EP the relevant location is the posterior linear predictor, with scale 1.
+	optim_alpha = function(response, lin_pred, start) {
+		scale = rep(1, length(lin_pred))
+		if(is.null(start)) start = init_alpha(response, lin_pred, scale)
+		newton_thresholds(as.integer(response), lin_pred, scale, start)$alpha
 	}
 
 	run_ep = function(alpha) {
@@ -162,7 +175,7 @@ optim_ep_ml = function(Y, X, prior, control = viord.control()){
 	lp = numeric(NROW(X))
 
 	while(!conv & it < control$maxit_outer) {
-		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, lp)
+		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, lp, alpha)
 		tmp = run_ep(alpha)
 		ll = tmp$logZ
 		lp = drop(X %*% tmp$m)
@@ -200,18 +213,14 @@ optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
 	#   sum_i log[ Phi((alpha_{y_i} - xi_i)/sigma_i) - Phi((alpha_{y_i-1} - xi_i)/sigma_i) ],
 	# where (xi_i, sigma_i) are the location and scale of q(z_i). Under MF the
 	# scale is 1 and xi_i is the linear predictor, but under PMF q(z_i) has its
-	# own location xiZ and scale sigmaZ > 1, which clm.fit takes through
-	# S.offset (an offset on the log scale). Ignoring the scale shrinks the
+	# own location xiZ and scale sigmaZ > 1. Ignoring the scale shrinks the
 	# thresholds towards zero.
-	optim_alpha = function(response, lin_pred, scale = NULL) {
-		if(is.null(scale)){
-			suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
-							  link = 'probit')$alpha)
-		} else {
-			suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
-							  S.offset = log(scale),
-							  link = 'probit')$alpha)
-		}
+	# The step is a Newton-Raphson on l(alpha), whose Hessian is tridiagonal, warm
+	# started at the current thresholds; see src/thresholds.cpp.
+	optim_alpha = function(response, lin_pred, scale = NULL, start = NULL) {
+		if(is.null(scale)) scale = rep(1, length(lin_pred))
+		if(is.null(start)) start = init_alpha(response, lin_pred, scale)
+		newton_thresholds(as.integer(response), lin_pred, scale, start)$alpha
 	}
 
 	# location and scale of q(z) that define the threshold step
@@ -278,7 +287,8 @@ optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
 	state_old = NULL # used by the "coef" convergence criterion
 
 	while(!conv & it < control$maxit_outer) {
-		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, target$loc, target$scale)
+		if(is.null(alpha) || it > 0)
+			alpha = optim_alpha(Y, target$loc, target$scale, alpha)
 		tmp = run_inner(alpha, init)
 		ll = tmp$elbo
 		lp = drop(X %*% tmp$m)
