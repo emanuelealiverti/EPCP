@@ -11,6 +11,6 @@ Description: Provides tools for approximate Bayesian inference in cumulative pro
 License: GPL (>= 2)
 Suggests: tinytest
 Encoding: UTF-8
-Imports: Rcpp (>= 1.1.0),ordinal,truncnorm,ggplot2,stats
+Imports: Rcpp (>= 1.1.0),ordinal,truncnorm,ggplot2,stats,nlme
 LinkingTo: Rcpp, RcppArmadillo
 Config/roxygen2/version: 8.0.0

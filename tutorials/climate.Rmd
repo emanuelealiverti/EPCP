@@ -335,14 +335,13 @@ against 10.5 for log-income.
 ## Country Random Effects
 
 We extract the posterior means of the 66 country effects with `ranef()`
-and map them onto a world map. The call is qualified as `viord::ranef()`
-because `mgcv` attaches `nlme`, which defines a generic of the same name.
+and map them onto a world map.
 
 ```{r, fig.keep = "none"}
 library(ggplot2)
 library(maps)
 
-u_all <- viord::ranef(fit)$country
+u_all <- ranef(fit)$country
 
 country_effects <- data.frame(COUNTRY_CODE = names(u_all),
                               effect       = as.numeric(u_all))

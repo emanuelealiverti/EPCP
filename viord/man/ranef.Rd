@@ -3,9 +3,6 @@
 \name{ranef}
 \alias{ranef}
 \title{Random-effect posterior means}
-\usage{
-ranef(object, ...)
-}
 \arguments{
 \item{object}{A fitted object of class \code{"viord"}.}
 

@@ -13,10 +13,16 @@
 #'
 #' @seealso \code{\link{postVar.viord}} for the posterior covariance matrices,
 #'   \code{\link{viord}} for model fitting.
+#' @name ranef
+#' @importFrom nlme ranef
 #' @export
-ranef <- function(object, ...) UseMethod("ranef")
+NULL
 
-#' @export
+# The generic comes from nlme (a recommended package, and the same object that
+# lme4 re-exports), so that ranef(fit) keeps working whichever of these packages
+# is attached last. Registering the method on that generic avoids the clash a
+# package-local generic would cause.
+#' @exportS3Method nlme::ranef
 ranef.viord <- function(object, ...) {
   if (is.null(object$u.names) || length(object$est$m_u) == 0) {
     message("No random effects in this model.")
