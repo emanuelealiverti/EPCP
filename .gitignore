@@ -58,3 +58,7 @@ rsconnect/
 
 
 
+
+# local data cache for the tutorials (not tracked)
+tutorials/tisp.rds
+tutorials/tisp.csv
