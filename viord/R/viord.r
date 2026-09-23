@@ -35,30 +35,11 @@
 #' @param algorithm Character string specifying the inference algorithm to use:
 #'   one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, \code{"VB_prior"}, or
 #'   \code{"PMF_mixed"}.
-#' @param maxit Integer specifying the maximum number of iterations used in both
-#'   the alternating optimization of the thresholds and the internal optimization
-#'   based on the selected approximation algorithm.
-#' @param conv_tr Numeric value giving the convergence tolerance for both the
-#'   threshold optimization and the internal inference loop. The criterion is
-#'   relative: convergence is declared when the change in the objective (ELBO,
-#'   or the EP log marginal likelihood) is smaller than
-#'   \code{conv_tr * (1 + abs(objective))}, so that the same tolerance is
-#'   meaningful at any sample size.
-#' @param conv_crit Character string selecting the convergence criterion, used
-#'   both by the internal algorithm and by the threshold optimization. With
-#'   \code{"elbo"} (the default) convergence is monitored on the objective
-#'   (ELBO, or the EP log marginal likelihood); with \code{"coef"} it is
-#'   monitored on the variational parameters themselves — posterior means,
-#'   thresholds, and log variance components — via the largest relative change
-#'   \eqn{\max_j |\Delta \theta_j| / (1 + |\theta_j|)}. The latter is useful
-#'   when the objective is nearly flat along directions in which the variance
-#'   components still move, which is common with large \eqn{n}. Ignored by
-#'   \code{algorithm = "EP"}.
-#' @param warm_start Logical. If \code{TRUE} (the default), each threshold
-#'   iteration initializes the variational algorithm at the state reached by the
-#'   previous one, instead of restarting from scratch. This does not change the
-#'   fixed point, but it substantially reduces the number of internal iterations.
-#'   Ignored by \code{algorithm = "EP"}.
+#' @param control A list of fitting options, as returned by
+#'   \code{\link{viord.control}}. It collects the maximum number of iterations
+#'   and the convergence tolerance of the inner algorithm and of the threshold
+#'   loop, the convergence criterion, the warm start, starting or fixed
+#'   thresholds, and how much information is printed.
 #' @return A list containing the estimated model quantities and convergence information.  
 #'   The output includes:
 #'   \itemize{
@@ -66,6 +47,8 @@
 #'     \item \code{alpha}: estimated thresholds (cutoffs);
 #'     \item \code{algorithm}: the selected inference algorithm;
 #'     \item \code{prior}: the prior provided as input
+#'     \item \code{it_outer} and \code{conv_outer}: number of threshold updates
+#'       performed and whether the threshold loop converged;
 #'     \item additional fields used for convergence diagnostics and summaries.
 #'   }
 #' 
@@ -109,6 +92,7 @@
 #' *Approximate Bayesian Inference for Cumulative Probit Regression Models*.
 #' \url{https://arxiv.org/abs/2511.06967}
 #' @seealso
+#' \code{\link{viord.control}} for the fitting options,
 #' \code{\link{summary.viord}} for model summaries,
 #' \code{\link{predict.viord}} for posterior predictive probabilities, and
 #' \code{\link{simulate.viord}} for posterior sampling from the approximate posterior
@@ -147,32 +131,28 @@
 viord = function(Y, X, prior,
                  Z = NULL, Z_group = NULL,
                  algorithm = c("EP", "MF", "PMF", "VB_prior", "PMF_mixed"),
-                 maxit = 100, conv_tr = 1e-6, warm_start = TRUE,
-                 conv_crit = c("elbo", "coef")) {
-
-  conv_crit <- match.arg(conv_crit)
+                 control = viord.control()) {
 
   algorithm <- match.arg(algorithm)
   if (!(algorithm %in% c("VB_prior", "PMF_mixed")) && !is.null(Z) && NCOL(Z) > 1) {
     stop("Z and Z_group are currently supported only with algorithm = 'VB_prior' or 'PMF_mixed'.")
   }
 
+  if (!is.list(control) || is.null(control$maxit_inner))
+    stop("control must be a list as returned by viord.control().")
+
+  if (!is.null(control$alpha_init) &&
+      length(control$alpha_init) != nlevels(factor(Y)) - 1)
+    stop("control$alpha_init must have length equal to the number of categories minus one.")
+
   if (algorithm == "EP") {
-    out <- optim_ep_ml(Y = Y, X = X, prior = prior,
-                       maxit = maxit, conv_tr = conv_tr)
+    out <- optim_ep_ml(Y = Y, X = X, prior = prior, control = control)
 
   } else {
-    vb_factor <- switch(algorithm,
-                        MF        = "MF",
-                        PMF       = "PMF",
-                        VB_prior  = "VB_prior",
-                        PMF_mixed = "PMF_mixed")
     out <- optim_vb_ml(Y = Y, X = X, prior = prior,
-                       maxit = maxit, conv_tr = conv_tr,
-                       vb_factor = vb_factor,
+                       vb_factor = algorithm,
                        Z = Z, Z_group = Z_group,
-                       warm_start = warm_start,
-                       conv_crit = conv_crit)
+                       control = control)
   }
 
   out$coef.names = colnames(X)
@@ -184,6 +164,7 @@ viord = function(Y, X, prior,
   }
   out$algorithm = algorithm
   out$prior = prior
+  out$control = control
   class(out) = 'viord'
   return(out)
 }

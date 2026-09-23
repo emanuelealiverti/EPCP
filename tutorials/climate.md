@@ -215,11 +215,11 @@ $10\, I$ (`Q0` is its inverse). The standard deviation of each of the
 three random-effect blocks receives a half-Cauchy prior with scale
 `s_sigma = 1`, represented as $\sigma^2_g \mid a_g \sim IG(1/2, 1/a_g)$,
 $a_g \sim IG(1/2, 1/s_\sigma^2)$. We fit the model with
-`algorithm = "PMF_mixed"`. The convergence tolerance is relative to the
-ELBO, so `conv_tr = 1e-7` is a tighter criterion than the default here
-and stabilises the smaller variance components; `maxit` is raised
-accordingly so that the threshold loop converges rather than stopping at
-the iteration cap.
+`algorithm = "PMF_mixed"`. Fitting options are collected by
+`viord.control()`: the tolerances are relative to the ELBO, so `1e-7` is
+a tighter criterion than the default here and stabilises the smaller
+variance components, and the iteration caps are raised accordingly so
+that both loops converge rather than stopping at the cap.
 
 ``` r
 p     <- ncol(X)
@@ -231,8 +231,10 @@ fit <- viord(Y       = df$Yt,
              Z_group = Z_group,
              prior   = prior,
              algorithm = "PMF_mixed",
-             conv_tr   = 1e-7,
-             maxit     = 200)
+             control   = viord.control(tol_inner   = 1e-7,
+                                       tol_outer   = 1e-7,
+                                       maxit_inner = 200,
+                                       maxit_outer = 200))
 
 summary(fit)
 ```
@@ -243,7 +245,7 @@ summary(fit)
     ## 
     ## Posterior estimates:
     ##                 Estimate Std. Error
-    ## age_lin         -0.0222   0.0351   
+    ## age_lin         -0.0222   0.0349   
     ## inc_lin          0.0288   0.1653   
     ## DEM_GENDER_male  0.0047   0.0105   
     ## DEM_EDU          0.1953   0.0076   
@@ -253,16 +255,16 @@ summary(fit)
     ## 
     ## Threshold parameters (cutpoints):
     ##          Estimate
-    ## alpha[1] -1.8206 
-    ## alpha[2] -1.1218 
-    ## alpha[3] -0.1358 
-    ## alpha[4]  0.9732 
+    ## alpha[1] -1.8205 
+    ## alpha[2] -1.1217 
+    ## alpha[3] -0.1357 
+    ## alpha[4]  0.9733 
     ## 
     ## Random-effect variance posterior:
     ##                   a       b       Mean    E[1/sigma2]
-    ## sigma_u2[age]      7.0000  0.0901  0.0150 77.6635    
-    ## sigma_u2[income]   7.0000 33.6516  5.6086  0.2080    
-    ## sigma_u2[country] 33.5000  2.2775  0.0701 14.7093    
+    ## sigma_u2[age]      7.0000  0.0890  0.0148 78.6795    
+    ## sigma_u2[income]   7.0000 33.6489  5.6082  0.2080    
+    ## sigma_u2[country] 33.5000  2.2774  0.0701 14.7098    
     ## 
     ## Converged in 2 iterations. Approx. log marginal likelihood: -54419
 

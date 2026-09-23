@@ -23,6 +23,7 @@ Rcpp::List pmf_ordinal(
 		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const int min_iter = 1, // iterations before convergence may be declared
 		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose=false, // print info
 		const bool full_out=false, // return elbo, z, etc
@@ -129,12 +130,14 @@ Rcpp::List pmf_ordinal(
 		if(crit_coef) {
 			// monitor the marginal mean of q(beta) rather than the ELBO
 			arma::vec mb = XV.t() * meanZ + (V * Q0 * mu0);
-			conv = (it > 1) && (max_rel_change(mb, mb_old) < tresh);
+			conv = (it > 1) && (it >= min_iter) &&
+				(max_rel_change(mb, mb_old) < tresh);
 			mb_old = mb;
 		} else {
 			// relative tolerance: the ELBO scales with n
-			conv = (std::abs(elbo_seq(it) - elbo_seq(it-1)) <
-			        tresh * (1.0 + std::abs(elbo_seq(it))));
+			conv = (it >= min_iter) &&
+				(std::abs(elbo_seq(it) - elbo_seq(it-1)) <
+				 tresh * (1.0 + std::abs(elbo_seq(it))));
 		}
 	}
 

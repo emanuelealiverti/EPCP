@@ -23,6 +23,7 @@ Rcpp::List vb_ordinal(
 		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const int min_iter = 1, // iterations before convergence may be declared
 		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose=false, // print info
 		const bool full_out=false, // what is returned as output
@@ -103,12 +104,14 @@ Rcpp::List vb_ordinal(
 
 		if(crit_coef) {
 			// monitor q(beta) itself rather than the ELBO
-			conv = (it > 1) && (max_rel_change(mu_beta, mu_beta_old) < tresh);
+			conv = (it > 1) && (it >= min_iter) &&
+				(max_rel_change(mu_beta, mu_beta_old) < tresh);
 			mu_beta_old = mu_beta;
 		} else {
 			// relative tolerance: the ELBO scales with n
-			conv = (std::abs(elbo_seq(it) - elbo_seq(it-1)) <
-			        tresh * (1.0 + std::abs(elbo_seq(it))));
+			conv = (it >= min_iter) &&
+				(std::abs(elbo_seq(it) - elbo_seq(it-1)) <
+				 tresh * (1.0 + std::abs(elbo_seq(it))));
 		}
 
 	}

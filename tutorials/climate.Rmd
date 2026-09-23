@@ -222,10 +222,11 @@ three random-effect blocks receives a half-Cauchy prior with scale
 `s_sigma = 1`, represented as
 $\sigma^2_g \mid a_g \sim IG(1/2, 1/a_g)$,
 $a_g \sim IG(1/2, 1/s_\sigma^2)$. We fit the model with
-`algorithm = "PMF_mixed"`. The convergence tolerance is relative to the
-ELBO, so `conv_tr = 1e-7` is a tighter criterion than the default here and
-stabilises the smaller variance components; `maxit` is raised accordingly so
-that the threshold loop converges rather than stopping at the iteration cap.
+`algorithm = "PMF_mixed"`. Fitting options are collected by
+`viord.control()`: the tolerances are relative to the ELBO, so `1e-7` is a
+tighter criterion than the default here and stabilises the smaller variance
+components, and the iteration caps are raised accordingly so that both loops
+converge rather than stopping at the cap.
 
 ```{r}
 p     <- ncol(X)
@@ -237,8 +238,10 @@ fit <- viord(Y       = df$Yt,
              Z_group = Z_group,
              prior   = prior,
              algorithm = "PMF_mixed",
-             conv_tr   = 1e-7,
-             maxit     = 200)
+             control   = viord.control(tol_inner   = 1e-7,
+                                       tol_outer   = 1e-7,
+                                       maxit_inner = 200,
+                                       maxit_outer = 200))
 
 summary(fit)
 ```

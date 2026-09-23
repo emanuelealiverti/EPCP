@@ -124,52 +124,70 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 }
 
 #' @noRd
-optim_ep_ml = function(Y,X,prior, maxit = 100, conv_tr = 1e-6){
+optim_ep_ml = function(Y, X, prior, control = viord.control()){
 
 	check_prior(prior, NCOL(X), "EP")
 
-	
 	# optimizer for alpha
-	optim_alpha = function(response, lin_pred,...) {
-		suppressWarnings(ordinal::clm.fit(y=response,offset=lin_pred, link = 'probit')$alpha)
+	optim_alpha = function(response, lin_pred) {
+		suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
+						  link = 'probit')$alpha)
 	}
-	# initial estimate
-	conv = F
+
+	run_ep = function(alpha) {
+		ep_ordinal(Y = as.numeric(Y),
+			   X = X,
+			   alpha = c(-Inf, alpha, Inf),
+			   mu0 = prior$mu0,
+			   S0 = prior$S0,
+			   Q0 = prior$Q0,
+			   maxit = control$maxit_inner,
+			   tresh = control$tol_inner,
+			   min_iter = control$min_iter,
+			   verbose = control$verbose >= 2,
+			   full_out = control$full_out)
+	}
+
+	if(control$fix_alpha){
+		alpha = control$alpha_init
+		tmp = run_ep(alpha)
+		return(list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = 1L,
+			    'conv_outer' = TRUE))
+	}
+
+	conv = FALSE
 	ll_old = Inf
 	it = 0
+	alpha = control$alpha_init
 	lp = numeric(NROW(X))
-	while(!conv & it < maxit) {
-		alpha = optim_alpha(Y, lp)
-		tmp = ep_ordinal(Y = as.numeric(Y),
-				 X = X,
-				 alpha = c(-Inf, alpha, Inf), 
-				 mu0 = prior$mu0,
-				 S0 = prior$S0,
-				 Q0 = prior$Q0,
-				 maxit = maxit, 
-				 full_out = T)
+
+	while(!conv & it < control$maxit_outer) {
+		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, lp)
+		tmp = run_ep(alpha)
 		ll = tmp$logZ
 		lp = drop(X %*% tmp$m)
 		# relative tolerance: the log marginal likelihood scales with n
-		conv = abs(ll - ll_old) < conv_tr * (1 + abs(ll))
+		conv = (it + 1 >= control$min_iter) &&
+			abs(ll - ll_old) < control$tol_outer * (1 + abs(ll))
 		ll_old = ll
-
 		it = it + 1
+		if(control$verbose >= 1)
+			cat(sprintf("outer %3d | logZ %.6g%s\n", it, ll,
+				    if(conv) " | converged" else ""))
 	}
-	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf))
+	if(!conv && control$verbose >= 1)
+		cat("outer loop reached maxit_outer without converging\n")
+
+	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = it,
+		   'conv_outer' = conv)
 	return(out)
 }
 
 
 
 #' @noRd
-optim_vb_ml = function(Y,X,prior, 
-		       maxit = 100, conv_tr = 1e-6,
-		       method = 'grad', vb_factor = "MF", full_path = F,
-		       Z = NULL, Z_group = NULL, warm_start = TRUE,
-		       conv_crit = c("elbo", "coef")){
-
-	conv_crit = match.arg(conv_crit)
+optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
+		       Z = NULL, Z_group = NULL, control = viord.control()){
 
 	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior", "PMF_mixed"))
 	random = check_random_effects(Z = Z, Z_group = Z_group, n = NROW(X))
@@ -179,17 +197,12 @@ optim_vb_ml = function(Y,X,prior,
 	check_prior(prior, NCOL(X), vb_factor, has_random = random$has_random)
 
 	# optimizer for alpha (Newton Rapson)
-	optim_alpha = function(response, lin_pred, ...) {
-		       suppressWarnings(ordinal::clm.fit(y=response,offset=lin_pred, link = 'probit',...)$alpha)
+	optim_alpha = function(response, lin_pred) {
+		suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
+						  link = 'probit')$alpha)
 	}
-	conv   =  F
-	conv_warm = F
-	ll_old =  Inf
-	it     =  0
-	lp     =  rep(0, NROW(X))
-	# warm start: state carried from one threshold iteration to the next
-	init   =  NULL
-	state_old = NULL # used by the "coef" convergence criterion
+
+	# state carried from one threshold iteration to the next
 	warm_state = function(tmp) {
 		switch(vb_factor,
 		       MF        = tmp["m"],
@@ -198,84 +211,87 @@ optim_vb_ml = function(Y,X,prior,
 		       PMF_mixed = tmp[c("meanZ", "sigma_u2_b", "a_u_b")])
 	}
 
-	while(!conv & it < maxit) {
-		alpha = optim_alpha(response = Y, lin_pred = lp)
-		if(vb_factor == "VB_prior"){
-			au0 = if(random$has_random) prior$au0 else NA_real_
-			bu0 = if(random$has_random) prior$bu0 else NA_real_
-			tmp = vb_ordinal_prior(Y = as.numeric(Y),
-					X = X,
-					alpha = c(-Inf, alpha, Inf),
-					mu0 = prior$mu0,
-					a0 = prior$a0,
-					b0 = prior$b0,
-					Z = random$Z,
-					Z_group = random$Z_group,
-					au0 = au0,
-					bu0 = bu0,
-					maxit = maxit,
-					conv_crit = conv_crit,
-					full_out = T,
-					init = init)
-		} else if(vb_factor == "PMF_mixed"){
-			tmp = pmf_ordinal_mixed(Y = as.numeric(Y),
-					X = X,
-					alpha = c(-Inf, alpha, Inf),
-					mu0 = prior$mu0,
-					Q0 = prior$Q0,
-					Z = random$Z,
-					Z_group = random$Z_group,
-					s_sigma = prior$s_sigma,
-					maxit = maxit,
-					conv_crit = conv_crit,
-					full_out = T,
-					init = init)
-		} else {
-			tmp = switch(vb_factor,
-				     MF = vb_ordinal(Y = as.numeric(Y),
-						      X = X,
-						      alpha = c(-Inf, alpha, Inf),
-						      mu0 = prior$mu0,
-						      S0 = prior$S0,
-						      Q0 = prior$Q0,
-						      maxit = maxit,
-						      conv_crit = conv_crit,
-						      full_out = T,
-						      init = init),
-				     PMF = pmf_ordinal(Y = as.numeric(Y),
-							X = X,
-							alpha = c(-Inf, alpha, Inf),
-							mu0 = prior$mu0,
-							S0 = prior$S0,
-							Q0 = prior$Q0,
-							maxit = maxit,
-							conv_crit = conv_crit,
-							full_out = T,
-							init = init))
-		}
+	run_inner = function(alpha, init) {
+		common = list(Y = as.numeric(Y),
+			      X = X,
+			      alpha = c(-Inf, alpha, Inf),
+			      mu0 = prior$mu0,
+			      maxit = control$maxit_inner,
+			      tresh = control$tol_inner,
+			      min_iter = control$min_iter,
+			      conv_crit = control$conv_crit,
+			      verbose = control$verbose >= 2,
+			      full_out = control$full_out,
+			      init = init)
+		args = switch(vb_factor,
+			MF        = c(common, list(S0 = prior$S0, Q0 = prior$Q0)),
+			PMF       = c(common, list(S0 = prior$S0, Q0 = prior$Q0)),
+			VB_prior  = c(common, list(a0 = prior$a0, b0 = prior$b0,
+						   Z = random$Z, Z_group = random$Z_group,
+						   au0 = if(random$has_random) prior$au0 else NA_real_,
+						   bu0 = if(random$has_random) prior$bu0 else NA_real_)),
+			PMF_mixed = c(common, list(Q0 = prior$Q0,
+						   Z = random$Z, Z_group = random$Z_group,
+						   s_sigma = prior$s_sigma)))
+		fun = switch(vb_factor,
+			     MF        = vb_ordinal,
+			     PMF       = pmf_ordinal,
+			     VB_prior  = vb_ordinal_prior,
+			     PMF_mixed = pmf_ordinal_mixed)
+		do.call(fun, args)
+	}
+
+	if(control$fix_alpha){
+		alpha = control$alpha_init
+		tmp = run_inner(alpha, NULL)
+		return(list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = 1L,
+			    'conv_outer' = TRUE))
+	}
+
+	conv   = FALSE
+	ll_old = Inf
+	it     = 0
+	lp     = rep(0, NROW(X))
+	alpha  = control$alpha_init
+	init   = NULL
+	state_old = NULL # used by the "coef" convergence criterion
+
+	while(!conv & it < control$maxit_outer) {
+		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, lp)
+		tmp = run_inner(alpha, init)
 		ll = tmp$elbo
 		lp = drop(X %*% tmp$m)
 		if(vb_factor %in% c("VB_prior", "PMF_mixed") && random$has_random){
 			lp = lp + drop(random$Z %*% tmp$m_u)
 		}
-		if(warm_start) init = warm_state(tmp)
-		if(conv_crit == "coef"){
+		if(control$warm_start) init = warm_state(tmp)
+
+		if(control$conv_crit == "coef"){
 			# monitor thresholds and coefficients rather than the ELBO
 			state = c(alpha, tmp$m, if(is.null(tmp$m_u)) NULL else tmp$m_u)
 			conv = !is.null(state_old) &&
-				max(abs(state - state_old) / (1 + abs(state))) < conv_tr
+				max(abs(state - state_old) / (1 + abs(state))) < control$tol_outer
 			state_old = state
 		} else {
 			# relative tolerance: the ELBO scales with n
-			conv = abs(ll - ll_old) < conv_tr * (1 + abs(ll))
+			conv = abs(ll - ll_old) < control$tol_outer * (1 + abs(ll))
 		}
-		it = it + 1
+		conv = conv && (it + 1 >= control$min_iter)
 		ll_old = ll
-
+		it = it + 1
+		if(control$verbose >= 1)
+			cat(sprintf("outer %3d | elbo %.6g | inner it %d%s\n", it, ll,
+				    tmp$it, if(conv) " | converged" else ""))
 	}
-	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf))
+	if(!conv && control$verbose >= 1)
+		cat("outer loop reached maxit_outer without converging\n")
+
+	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = it,
+		   'conv_outer' = conv)
 	return(out)
 }
+
+
 
 # Crude optimization with optim (unefficient)
 

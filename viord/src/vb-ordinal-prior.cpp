@@ -146,6 +146,7 @@ Rcpp::List vb_ordinal_prior(
 		const double bu0 = NA_REAL, // Inv-Gamma prior scale for sigma_u2
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const int min_iter = 1, // iterations before convergence may be declared
 		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose=false, // print info
 		const bool full_out=false, // what is returned as output
@@ -334,7 +335,7 @@ Rcpp::List vb_ordinal_prior(
 		state(d) = std::log(tau_b);
 		if(n_groups > 0) state.tail(n_groups) = arma::log(tau_u);
 
-		if(it > 0) {
+		if(it >= min_iter) {
 			if(crit_coef) {
 				// monitor the variational parameters themselves: the ELBO can be
 				// nearly flat while the variance components still move

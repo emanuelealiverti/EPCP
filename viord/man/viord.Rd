@@ -11,8 +11,7 @@ viord(
   Z = NULL,
   Z_group = NULL,
   algorithm = c("EP", "MF", "PMF", "VB_prior", "PMF_mixed"),
-  maxit = 100,
-  conv_tr = 1e-06
+  control = viord.control()
 )
 }
 \arguments{
@@ -43,12 +42,11 @@ with \code{algorithm = "VB_prior"} and \code{algorithm = "PMF_mixed"}.}
 one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, \code{"VB_prior"}, or
 \code{"PMF_mixed"}.}
 
-\item{maxit}{Integer specifying the maximum number of iterations used in both
-the alternating optimization of the thresholds and the internal optimization
-based on the selected approximation algorithm.}
-
-\item{conv_tr}{Numeric value giving the convergence tolerance for both the
-threshold optimization and the internal inference loop.}
+\item{control}{A list of fitting options, as returned by
+\code{\link{viord.control}}. It collects the maximum number of iterations
+and the convergence tolerance of the inner algorithm and of the threshold
+loop, the convergence criterion, the warm start, starting or fixed
+thresholds, and how much information is printed.}
 }
 \value{
 A list containing the estimated model quantities and convergence information.  
@@ -58,6 +56,8 @@ A list containing the estimated model quantities and convergence information.
     \item \code{alpha}: estimated thresholds (cutoffs);
     \item \code{algorithm}: the selected inference algorithm;
     \item \code{prior}: the prior provided as input
+    \item \code{it_outer} and \code{conv_outer}: number of threshold updates
+      performed and whether the threshold loop converged;
     \item additional fields used for convergence diagnostics and summaries.
   }
 }
@@ -149,6 +149,7 @@ Aliverti, E. (2025).
 \url{https://arxiv.org/abs/2511.06967}
 }
 \seealso{
+\code{\link{viord.control}} for the fitting options,
 \code{\link{summary.viord}} for model summaries,
 \code{\link{predict.viord}} for posterior predictive probabilities, and
 \code{\link{simulate.viord}} for posterior sampling from the approximate posterior

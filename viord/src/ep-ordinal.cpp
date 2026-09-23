@@ -26,6 +26,7 @@ Rcpp::List ep_ordinal(
 		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const int min_iter = 1, // iterations before convergence may be declared
 		const bool verbose=false, // print information
 		const bool full_out=false // what is returned as output
 		)
@@ -178,7 +179,7 @@ Rcpp::List ep_ordinal(
 		// (alternatively, check convergenge of posterior means)
 		// relative tolerance: log p_ep(y) scales with n
 		err = std::abs(z_ep_old - z_ep);
-		conv = (err < tresh * (1.0 + std::abs(z_ep)));
+		conv = (it + 1 >= min_iter) && (err < tresh * (1.0 + std::abs(z_ep)));
 		z_seq(it) = z_ep;
 		it++;
 

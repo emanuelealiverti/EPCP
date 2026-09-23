@@ -52,6 +52,7 @@ Rcpp::List pmf_ordinal_mixed(
 		const double s_sigma,      // half-Cauchy scale
 		const int maxit   = 100,
 		const double tresh = 1e-6,
+		const int min_iter = 1, // iterations before convergence may be declared
 		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose = false,
 		const bool full_out = false,
@@ -230,7 +231,7 @@ Rcpp::List pmf_ordinal_mixed(
 		double rel_coef = arma::datum::inf;
 		state.head(d) = m_theta;
 		state.tail(G) = arma::log(tau_u);
-		if(it > 0) {
+		if(it >= min_iter) {
 			if(crit_coef) {
 				// monitor the variational parameters themselves: the ELBO can be
 				// nearly flat while the variance components still move
