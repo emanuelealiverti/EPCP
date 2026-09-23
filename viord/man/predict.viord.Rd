@@ -66,11 +66,11 @@ Depending on the inference algorithm used to fit the model:
 }
 \examples{
 \dontrun{
-fit_mf <- viord(Y, X, prior, method = "MF")
+fit_mf <- viord(Y, X, prior, algorithm = "MF")
 pred_class <- predict(fit_mf, Xn = X_new, type = "class")
 pred_prob  <- predict(fit_mf, Xn = X_new, type = "prob")
 
-fit_pmf <- viord(Y, X, prior, method = "PMF")
+fit_pmf <- viord(Y, X, prior, algorithm = "PMF")
 pred_pmf <- predict(fit_pmf, Y = Y, X = X, prior = prior, Xn = X_new, nMC = 1000)
 }
 
