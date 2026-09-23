@@ -196,10 +196,31 @@ optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
 	}
 	check_prior(prior, NCOL(X), vb_factor, has_random = random$has_random)
 
-	# optimizer for alpha (Newton Rapson)
-	optim_alpha = function(response, lin_pred) {
-		suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
-						  link = 'probit')$alpha)
+	# Optimizer for alpha. The only ELBO term depending on alpha is
+	#   sum_i log[ Phi((alpha_{y_i} - xi_i)/sigma_i) - Phi((alpha_{y_i-1} - xi_i)/sigma_i) ],
+	# where (xi_i, sigma_i) are the location and scale of q(z_i). Under MF the
+	# scale is 1 and xi_i is the linear predictor, but under PMF q(z_i) has its
+	# own location xiZ and scale sigmaZ > 1, which clm.fit takes through
+	# S.offset (an offset on the log scale). Ignoring the scale shrinks the
+	# thresholds towards zero.
+	optim_alpha = function(response, lin_pred, scale = NULL) {
+		if(is.null(scale)){
+			suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
+							  link = 'probit')$alpha)
+		} else {
+			suppressWarnings(ordinal::clm.fit(y = response, offset = lin_pred,
+							  S.offset = log(scale),
+							  link = 'probit')$alpha)
+		}
+	}
+
+	# location and scale of q(z) that define the threshold step
+	alpha_target = function(tmp, lp) {
+		if(vb_factor %in% c("PMF", "PMF_mixed") && !is.null(tmp$xiZ)){
+			list(loc = tmp$xiZ, scale = tmp$sigmaZ)
+		} else {
+			list(loc = lp, scale = NULL)
+		}
 	}
 
 	# state carried from one threshold iteration to the next
@@ -251,19 +272,20 @@ optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
 	conv   = FALSE
 	ll_old = Inf
 	it     = 0
-	lp     = rep(0, NROW(X))
 	alpha  = control$alpha_init
 	init   = NULL
+	target = list(loc = rep(0, NROW(X)), scale = NULL)
 	state_old = NULL # used by the "coef" convergence criterion
 
 	while(!conv & it < control$maxit_outer) {
-		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, lp)
+		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, target$loc, target$scale)
 		tmp = run_inner(alpha, init)
 		ll = tmp$elbo
 		lp = drop(X %*% tmp$m)
 		if(vb_factor %in% c("VB_prior", "PMF_mixed") && random$has_random){
 			lp = lp + drop(random$Z %*% tmp$m_u)
 		}
+		target = alpha_target(tmp, lp)
 		if(control$warm_start) init = warm_state(tmp)
 
 		if(control$conv_crit == "coef"){

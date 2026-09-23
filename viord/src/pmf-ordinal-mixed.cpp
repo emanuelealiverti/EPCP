@@ -294,11 +294,11 @@ Rcpp::List pmf_ordinal_mixed(
 	out["elbo"]              = elbo_seq(it - 1);
 	out["conv"]              = conv;
 
-	out["meanZ"] = meanZ; // for warm starting a subsequent fit
+	out["meanZ"]  = meanZ;  // for warm starting a subsequent fit
+	out["sigmaZ"] = sigmaZ; // location and scale of q(z): needed by the
+	out["xiZ"]    = xiZ;    // threshold step, so always returned
 
 	if(full_out) {
-		out["sigmaZ"]   = sigmaZ;
-		out["xiZ"]      = xiZ;
 		out["elbo_seq"] = elbo_seq.subvec(0, it - 1);
 		out["sigma_u2_inv_mean_seq"] = tau_u_seq.rows(0, it - 1);
 	}

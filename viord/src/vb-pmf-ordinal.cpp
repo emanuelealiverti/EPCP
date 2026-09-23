@@ -164,14 +164,14 @@ Rcpp::List pmf_ordinal(
 
 	// Output
 	Rcpp::List out;
-	out["meanZ"] = meanZ; // for warm starting a subsequent fit
+	out["meanZ"]  = meanZ;  // for warm starting a subsequent fit
+	out["sigmaZ"] = sigmaZ; // location and scale of q(z): needed by the
+	out["xiZ"]    = xiZ;    // threshold step, so always returned
 	if(full_out) {
 		// marginal moments for \beta
 		out["m"] = meanBeta;
 		out["S"] = varBeta;
 		// Quantities for truncated normal simulations
-		out["sigmaZ"] = sigmaZ;
-		out["xiZ"] = xiZ;
 		out["elbo_seq"] = elbo_seq.subvec(1,it);
 		out["elbo"] = elbo_seq(it);
 		out["conv"] = conv;
