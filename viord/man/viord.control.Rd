@@ -9,6 +9,7 @@ viord.control(
   maxit_outer = 100,
   tol_inner = 1e-06,
   tol_outer = 1e-06,
+  alpha_method = c("newton", "clm"),
   min_iter = 1,
   conv_crit = c("elbo", "coef"),
   warm_start = TRUE,
@@ -31,6 +32,15 @@ algorithm, at fixed thresholds.}
 Both tolerances are relative: convergence is declared when the change in
 the objective is smaller than \code{tol * (1 + abs(objective))}, so that
 the same value is meaningful at any sample size.}
+
+\item{alpha_method}{Character. How the thresholds are estimated at each
+outer iteration. \code{"newton"} (the default) runs a Newton-Raphson step
+on the exact objective, taking the location and scale of \eqn{q(z)} into
+account, with a tridiagonal Hessian; it is typically several times faster.
+\code{"clm"} delegates to \code{ordinal::clm.fit}, which requires the
+\pkg{ordinal} package and reaches the scale through its \code{S.offset}
+argument. The two agree to numerical accuracy and the option is kept mainly
+for cross-checking.}
 
 \item{min_iter}{Integer. Minimum number of iterations before convergence may
 be declared, in both loops. Useful when two consecutive iterations may

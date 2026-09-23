@@ -79,14 +79,14 @@ summary(ep_tmp)
     ## Posterior estimates:
     ##            Estimate Std. Error
     ## age         0.5512   0.1035   
-    ## genderMale  0.2109   0.1012   
+    ## genderMale  0.2110   0.1012   
     ## pincome    -0.1832   0.1004   
     ## 
     ## Threshold parameters (cutpoints):
     ##          Estimate
-    ## alpha[1] -1.1894 
-    ## alpha[2] -0.7600 
-    ## alpha[3]  0.0658 
+    ## alpha[1] -1.1897 
+    ## alpha[2] -0.7604 
+    ## alpha[3]  0.0653 
     ## 
     ## Converged in 3 iterations. Approx. log marginal likelihood: -596.8
 

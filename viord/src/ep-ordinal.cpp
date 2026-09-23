@@ -107,6 +107,13 @@ Rcpp::List ep_ordinal(
 	// sequence of p(y,q)
 	arma:: vec z_seq(maxit);
 
+	// Cavity moments of the latent z_i, overwritten at every sweep so that the
+	// last one is returned: log Z_i depends on the thresholds through these, so
+	// the threshold step needs them (mean xi' Sigma_{-i} r_{-i}, scale
+	// sqrt(1 + xi' Sigma_{-i} xi)).
+	arma::vec cavity_mean(n, fill::zeros);
+	arma::vec cavity_sd(n, fill::ones);
+
 	while (!conv && it < maxit) {
 		z_ep_old = z_ep;
 
@@ -134,6 +141,9 @@ Rcpp::List ep_ordinal(
 			sisq = std::sqrt(si);
 
 			if(si > 0.0) {
+
+				cavity_mean(i) = xi_Si_mi;
+				cavity_sd(i)   = sisq;
 
 				// Truncation values
 				Ui = (l(i) - xi_Si_mi) / sisq;
@@ -193,6 +203,9 @@ Rcpp::List ep_ordinal(
 	
 	// Output
 	Rcpp::List out;
+	// always returned: the threshold step needs the cavity moments
+	out["cavity_mean"] = cavity_mean;
+	out["cavity_sd"]   = cavity_sd;
 	if(full_out) {
 		out["S"] = S_ep;
 		out["m"] = m_ep;

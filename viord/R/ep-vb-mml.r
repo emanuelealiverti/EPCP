@@ -22,6 +22,31 @@ check_spd_matrix = function(x, name, p){
 	invisible(TRUE)
 }
 
+# One threshold update. Both methods maximise the same objective,
+#   sum_i log[ Phi((alpha_{y_i} - loc_i)/scale_i) - Phi((alpha_{y_i-1} - loc_i)/scale_i) ],
+# "newton" through the dedicated Newton-Raphson step (tridiagonal Hessian, warm
+# started at the current thresholds), "clm" through ordinal::clm.fit, which
+# takes the scale as an offset on the log scale.
+#' @noRd
+update_alpha = function(y, loc, scale = NULL, start = NULL, method = "newton"){
+	if(is.null(scale)) scale = rep(1, length(loc))
+	if(method == "clm"){
+		if(!requireNamespace("ordinal", quietly = TRUE))
+			stop("alpha_method = \"clm\" requires the ordinal package.")
+		if(all(scale == 1)){
+			suppressWarnings(ordinal::clm.fit(y = y, offset = loc,
+							  link = 'probit')$alpha)
+		} else {
+			suppressWarnings(ordinal::clm.fit(y = y, offset = loc,
+							  S.offset = log(scale),
+							  link = 'probit')$alpha)
+		}
+	} else {
+		if(is.null(start)) start = init_alpha(y, loc, scale)
+		newton_thresholds(as.integer(y), loc, scale, start)$alpha
+	}
+}
+
 # Starting thresholds: quantiles of the implied marginal distribution of z,
 # used only when no previous thresholds are available.
 #' @noRd
@@ -139,12 +164,13 @@ optim_ep_ml = function(Y, X, prior, control = viord.control()){
 
 	check_prior(prior, NCOL(X), "EP")
 
-	# Newton-Raphson on the thresholds, warm started at the current ones. Under
-	# EP the relevant location is the posterior linear predictor, with scale 1.
-	optim_alpha = function(response, lin_pred, start) {
-		scale = rep(1, length(lin_pred))
-		if(is.null(start)) start = init_alpha(response, lin_pred, scale)
-		newton_thresholds(as.integer(response), lin_pred, scale, start)$alpha
+	# Under EP the term depending on the thresholds is sum_i log Z_i, where Z_i is
+	# a normal probability with the CAVITY moments of z_i, not the posterior ones:
+	# location xi' Sigma_{-i} r_{-i} and scale sqrt(1 + xi' Sigma_{-i} xi) > 1.
+	# Before the first fit no cavity is available and the posterior linear
+	# predictor with unit scale is used instead.
+	optim_alpha = function(response, loc, scale, start) {
+		update_alpha(response, loc, scale, start, control$alpha_method)
 	}
 
 	run_ep = function(alpha) {
@@ -172,13 +198,16 @@ optim_ep_ml = function(Y, X, prior, control = viord.control()){
 	ll_old = Inf
 	it = 0
 	alpha = control$alpha_init
-	lp = numeric(NROW(X))
+	target = list(loc = numeric(NROW(X)), scale = NULL)
 
 	while(!conv & it < control$maxit_outer) {
-		if(is.null(alpha) || it > 0) alpha = optim_alpha(Y, lp, alpha)
+		if(is.null(alpha) || it > 0)
+			alpha = optim_alpha(Y, target$loc, target$scale, alpha)
 		tmp = run_ep(alpha)
 		ll = tmp$logZ
-		lp = drop(X %*% tmp$m)
+		target = if(is.null(tmp$cavity_mean))
+				list(loc = drop(X %*% tmp$m), scale = NULL)
+			else list(loc = tmp$cavity_mean, scale = tmp$cavity_sd)
 		# relative tolerance: the log marginal likelihood scales with n
 		conv = (it + 1 >= control$min_iter) &&
 			abs(ll - ll_old) < control$tol_outer * (1 + abs(ll))
@@ -215,12 +244,8 @@ optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
 	# scale is 1 and xi_i is the linear predictor, but under PMF q(z_i) has its
 	# own location xiZ and scale sigmaZ > 1. Ignoring the scale shrinks the
 	# thresholds towards zero.
-	# The step is a Newton-Raphson on l(alpha), whose Hessian is tridiagonal, warm
-	# started at the current thresholds; see src/thresholds.cpp.
 	optim_alpha = function(response, lin_pred, scale = NULL, start = NULL) {
-		if(is.null(scale)) scale = rep(1, length(lin_pred))
-		if(is.null(start)) start = init_alpha(response, lin_pred, scale)
-		newton_thresholds(as.integer(response), lin_pred, scale, start)$alpha
+		update_alpha(response, lin_pred, scale, start, control$alpha_method)
 	}
 
 	# location and scale of q(z) that define the threshold step

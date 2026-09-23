@@ -13,6 +13,14 @@
 #'   Both tolerances are relative: convergence is declared when the change in
 #'   the objective is smaller than \code{tol * (1 + abs(objective))}, so that
 #'   the same value is meaningful at any sample size.
+#' @param alpha_method Character. How the thresholds are estimated at each
+#'   outer iteration. \code{"newton"} (the default) runs a Newton-Raphson step
+#'   on the exact objective, taking the location and scale of \eqn{q(z)} into
+#'   account, with a tridiagonal Hessian; it is typically several times faster.
+#'   \code{"clm"} delegates to \code{ordinal::clm.fit}, which requires the
+#'   \pkg{ordinal} package and reaches the scale through its \code{S.offset}
+#'   argument. The two agree to numerical accuracy and the option is kept mainly
+#'   for cross-checking.
 #' @param min_iter Integer. Minimum number of iterations before convergence may
 #'   be declared, in both loops. Useful when two consecutive iterations may
 #'   happen to agree before the algorithm has really settled.
@@ -60,6 +68,7 @@ viord.control <- function(maxit_inner = 100,
                           maxit_outer = 100,
                           tol_inner   = 1e-6,
                           tol_outer   = 1e-6,
+                          alpha_method = c("newton", "clm"),
                           min_iter    = 1,
                           conv_crit   = c("elbo", "coef"),
                           warm_start  = TRUE,
@@ -68,7 +77,10 @@ viord.control <- function(maxit_inner = 100,
                           verbose     = 0,
                           full_out    = TRUE) {
 
-  conv_crit <- match.arg(conv_crit)
+  conv_crit    <- match.arg(conv_crit)
+  alpha_method <- match.arg(alpha_method)
+  if (alpha_method == "clm" && !requireNamespace("ordinal", quietly = TRUE))
+    stop("alpha_method = \"clm\" requires the ordinal package.")
 
   check_count <- function(x, name, min = 1) {
     if (!is.numeric(x) || length(x) != 1 || !is.finite(x) || x < min || x != as.integer(x))
@@ -111,6 +123,7 @@ viord.control <- function(maxit_inner = 100,
        maxit_outer = maxit_outer,
        tol_inner   = tol_inner,
        tol_outer   = tol_outer,
+       alpha_method = alpha_method,
        min_iter    = min_iter,
        conv_crit   = conv_crit,
        warm_start  = warm_start,
