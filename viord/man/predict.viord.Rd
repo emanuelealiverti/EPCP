@@ -13,6 +13,7 @@
   prior = NULL,
   nMC = 1000,
   type = c("class", "prob"),
+  Z = NULL,
   ...
 )
 }
@@ -22,11 +23,11 @@
 \item{Xn}{A numeric matrix of new covariate values (one row per observation).}
 
 \item{Zn}{Optional random-effects design matrix for new observations. Required
-for \code{VB_prior} fits that used random effects.}
+for \code{VB_prior} fits that used random effects and for \code{PMF_mixed}.}
 
-\item{Y}{(PMF only) The ordinal response used in fitting the model.}
+\item{Y}{(PMF and PMF_mixed only) The ordinal response used in fitting the model.}
 
-\item{X}{(PMF only) The design matrix used in fitting the model.}
+\item{X}{(PMF and PMF_mixed only) The design matrix used in fitting the model.}
 
 \item{prior}{(PMF only) A list containing the prior specification
 (\code{mu0}, \code{S0}, and \code{Q0}).}
@@ -38,6 +39,9 @@ for \code{VB_prior} fits that used random effects.}
 \code{"prob"} returns the full matrix of posterior predictive probabilities (for each category),
 while \code{"class"} returns only the most probable categories
 (default \code{"class"}).}
+
+\item{Z}{(PMF_mixed only) The random-effects design matrix used in fitting
+the model.}
 
 \item{...}{Further arguments (currently ignored).}
 }

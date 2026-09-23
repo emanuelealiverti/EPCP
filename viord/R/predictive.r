@@ -15,9 +15,9 @@
 #' @param object A fitted model of class \code{"viord"}.
 #' @param Xn A numeric matrix of new covariate values (one row per observation).
 #' @param Zn Optional random-effects design matrix for new observations. Required
-#'   for \code{VB_prior} fits that used random effects.
-#' @param Y (PMF only) The ordinal response used in fitting the model.
-#' @param X (PMF only) The design matrix used in fitting the model.
+#'   for \code{VB_prior} fits that used random effects and for \code{PMF_mixed}.
+#' @param Y (PMF and PMF_mixed only) The ordinal response used in fitting the model.
+#' @param X (PMF and PMF_mixed only) The design matrix used in fitting the model.
 #' @param prior (PMF only) A list containing the prior specification
 #'   (\code{mu0}, \code{S0}, and \code{Q0}).
 #' @param nMC Number of Monte Carlo samples for the PMF predictive distribution
@@ -26,6 +26,8 @@
 #'   \code{"prob"} returns the full matrix of posterior predictive probabilities (for each category),
 #'   while \code{"class"} returns only the most probable categories
 #'   (default \code{"class"}).
+#' @param Z (PMF_mixed only) The random-effects design matrix used in fitting
+#'   the model.
 #' @param ... Further arguments (currently ignored).
 #'
 #' @return
@@ -47,34 +49,41 @@
 #'
 #' @export
 predict.viord <- function(object, Xn, Zn = NULL, Y = NULL, X = NULL, prior = NULL,
-                          nMC = 1e3, type = c("class", "prob"), ...) {
+                          nMC = 1e3, type = c("class", "prob"), Z = NULL, ...) {
   type <- match.arg(type)
   method <- toupper(object$algorithm)
   tresh <- object$alpha
 
-  if (method %in% c("PMF", "PMF_PRIOR")) {
-    if (is.null(Y) || is.null(X))
-      stop("For PMF/PMF_prior prediction, you must specify Y and X.")
+  if (method == "PMF_MIXED") {
+    if (is.null(Y) || is.null(X) || is.null(Z) || is.null(Zn))
+      stop("For PMF_mixed prediction, you must specify Y, X, Z, and Zn.")
+    if (!is.matrix(Zn) || NROW(Zn) != NROW(Xn) || NCOL(Zn) != NCOL(Z))
+      stop("Zn must be a matrix with nrow(Xn) rows and ncol(Z) columns.")
+
+    pred <- pred_pmf(
+      Y = Y,
+      X = cbind(X, Z),
+      tresh = tresh,
+      Xn = cbind(Xn, Zn),
+      prior = pmf_mixed_prior(object),
+      xiZ = object$est$xiZ,
+      sigmaZ = object$est$sigmaZ,
+      nMC = nMC
+    )
+
+  } else if (method == "PMF") {
+    if (is.null(Y) || is.null(X) || is.null(prior))
+      stop("For PMF prediction, you must specify Y, X, and prior.")
 
     xiZ    <- object$est$xiZ
     sigmaZ <- object$est$sigmaZ
-
-    if (method == "PMF_PRIOR") {
-      tau_b      <- object$est$sigma_b2_inv_mean
-      prior_pred <- list(mu0 = object$prior$mu0,
-                         Q0  = tau_b * diag(ncol(X)))
-    } else {
-      if (is.null(prior))
-        stop("For PMF prediction, you must specify prior.")
-      prior_pred <- prior
-    }
 
     pred <- pred_pmf(
       Y = Y,
       X = X,
       tresh = tresh,
       Xn = Xn,
-      prior = prior_pred,
+      prior = prior,
       xiZ = xiZ,
       sigmaZ = sigmaZ,
       nMC = nMC
@@ -107,7 +116,7 @@ predict.viord <- function(object, Xn, Zn = NULL, Y = NULL, X = NULL, prior = NUL
     )
 
   } else {
-    stop("Unknown method: must be one of 'PMF', 'PMF_prior', 'MF', 'VB_prior', or 'EP'.")
+    stop("Unknown method: must be one of 'PMF', 'PMF_mixed', 'MF', 'VB_prior', or 'EP'.")
   }
 
   if (type == "class") {

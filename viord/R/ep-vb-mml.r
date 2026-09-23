@@ -80,7 +80,7 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 
 	check_mu0()
 
-	if(algorithm %in% c("VB_prior", "PMF_prior")){
+	if(algorithm == "VB_prior"){
 		if(is.null(prior$a0) || is.null(prior$b0)){
 			stop(sprintf("For %s, prior must contain mu0, a0, and b0.", algorithm))
 		}
@@ -100,6 +100,17 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 			if(!is.numeric(prior$bu0) || length(prior$bu0) != 1 || !is.finite(prior$bu0) || prior$bu0 <= 0){
 				stop("For VB_prior, prior$bu0 must be a strictly positive finite number.")
 			}
+		}
+	} else if(algorithm == "PMF_mixed"){
+		if(!has_random){
+			stop("PMF_mixed requires a random-effects design Z (with at least two columns) and Z_group.")
+		}
+		if(is.null(prior$Q0)){
+			stop("For PMF_mixed, prior must contain mu0, Q0, and s_sigma.")
+		}
+		check_spd_matrix(prior$Q0, "prior$Q0 for PMF_mixed", p)
+		if(!is.numeric(prior$s_sigma) || length(prior$s_sigma) != 1 || !is.finite(prior$s_sigma) || prior$s_sigma <= 0){
+			stop("For PMF_mixed, prior$s_sigma must be a strictly positive finite number.")
 		}
 	} else {
 		if(is.null(prior$S0) || is.null(prior$Q0)){
@@ -139,7 +150,8 @@ optim_ep_ml = function(Y,X,prior, maxit = 100, conv_tr = 1e-6){
 				 full_out = T)
 		ll = tmp$logZ
 		lp = drop(X %*% tmp$m)
-		conv = abs(ll - ll_old) < conv_tr
+		# relative tolerance: the log marginal likelihood scales with n
+		conv = abs(ll - ll_old) < conv_tr * (1 + abs(ll))
 		ll_old = ll
 
 		it = it + 1
@@ -154,12 +166,15 @@ optim_ep_ml = function(Y,X,prior, maxit = 100, conv_tr = 1e-6){
 optim_vb_ml = function(Y,X,prior, 
 		       maxit = 100, conv_tr = 1e-6,
 		       method = 'grad', vb_factor = "MF", full_path = F,
-		       Z = NULL, Z_group = NULL){
+		       Z = NULL, Z_group = NULL, warm_start = TRUE,
+		       conv_crit = c("elbo", "coef")){
 
-	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior", "PMF_prior"))
+	conv_crit = match.arg(conv_crit)
+
+	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior", "PMF_mixed"))
 	random = check_random_effects(Z = Z, Z_group = Z_group, n = NROW(X))
-	if(random$has_random && vb_factor != "VB_prior"){
-		stop("Z and Z_group are currently supported only with algorithm = 'VB_prior'.")
+	if(random$has_random && !(vb_factor %in% c("VB_prior", "PMF_mixed"))){
+		stop("Z and Z_group are currently supported only with algorithm = 'VB_prior' or 'PMF_mixed'.")
 	}
 	check_prior(prior, NCOL(X), vb_factor, has_random = random$has_random)
 
@@ -172,13 +187,19 @@ optim_vb_ml = function(Y,X,prior,
 	ll_old =  Inf
 	it     =  0
 	lp     =  rep(0, NROW(X))
-	# quantities used by PMF
-	sigmaZ =  rep(1,NROW(X))
-	muZ    =  rep(0, NROW(X))
-	# initialize V and H
+	# warm start: state carried from one threshold iteration to the next
+	init   =  NULL
+	state_old = NULL # used by the "coef" convergence criterion
+	warm_state = function(tmp) {
+		switch(vb_factor,
+		       MF        = tmp["m"],
+		       PMF       = tmp["meanZ"],
+		       VB_prior  = tmp[c("m_joint", "sigma_b2_b", "sigma_u2_b")],
+		       PMF_mixed = tmp[c("meanZ", "sigma_u2_b", "a_u_b")])
+	}
 
 	while(!conv & it < maxit) {
-		alpha = optim_alpha(response = Y, lp = lp, sigmaZ = sigmaZ, muZ = muZ)
+		alpha = optim_alpha(response = Y, lin_pred = lp)
 		if(vb_factor == "VB_prior"){
 			au0 = if(random$has_random) prior$au0 else NA_real_
 			bu0 = if(random$has_random) prior$bu0 else NA_real_
@@ -193,16 +214,22 @@ optim_vb_ml = function(Y,X,prior,
 					au0 = au0,
 					bu0 = bu0,
 					maxit = maxit,
-					full_out = T)
-		} else if(vb_factor == "PMF_prior"){
-			tmp = pmf_ordinal_prior(Y = as.numeric(Y),
+					conv_crit = conv_crit,
+					full_out = T,
+					init = init)
+		} else if(vb_factor == "PMF_mixed"){
+			tmp = pmf_ordinal_mixed(Y = as.numeric(Y),
 					X = X,
 					alpha = c(-Inf, alpha, Inf),
 					mu0 = prior$mu0,
-					a0 = prior$a0,
-					b0 = prior$b0,
+					Q0 = prior$Q0,
+					Z = random$Z,
+					Z_group = random$Z_group,
+					s_sigma = prior$s_sigma,
 					maxit = maxit,
-					full_out = T)
+					conv_crit = conv_crit,
+					full_out = T,
+					init = init)
 		} else {
 			tmp = switch(vb_factor,
 				     MF = vb_ordinal(Y = as.numeric(Y),
@@ -212,7 +239,9 @@ optim_vb_ml = function(Y,X,prior,
 						      S0 = prior$S0,
 						      Q0 = prior$Q0,
 						      maxit = maxit,
-						      full_out = T),
+						      conv_crit = conv_crit,
+						      full_out = T,
+						      init = init),
 				     PMF = pmf_ordinal(Y = as.numeric(Y),
 							X = X,
 							alpha = c(-Inf, alpha, Inf),
@@ -220,22 +249,28 @@ optim_vb_ml = function(Y,X,prior,
 							S0 = prior$S0,
 							Q0 = prior$Q0,
 							maxit = maxit,
-							full_out = T))
+							conv_crit = conv_crit,
+							full_out = T,
+							init = init))
 		}
 		ll = tmp$elbo
 		lp = drop(X %*% tmp$m)
-		if(vb_factor == "VB_prior" && random$has_random){
+		if(vb_factor %in% c("VB_prior", "PMF_mixed") && random$has_random){
 			lp = lp + drop(random$Z %*% tmp$m_u)
 		}
-		conv = abs(ll - ll_old) < conv_tr
+		if(warm_start) init = warm_state(tmp)
+		if(conv_crit == "coef"){
+			# monitor thresholds and coefficients rather than the ELBO
+			state = c(alpha, tmp$m, if(is.null(tmp$m_u)) NULL else tmp$m_u)
+			conv = !is.null(state_old) &&
+				max(abs(state - state_old) / (1 + abs(state))) < conv_tr
+			state_old = state
+		} else {
+			# relative tolerance: the ELBO scales with n
+			conv = abs(ll - ll_old) < conv_tr * (1 + abs(ll))
+		}
 		it = it + 1
 		ll_old = ll
-#		cat(it)
-		if(vb_factor %in% c("PMF", "PMF_prior", "MIX")){
-			muZ = lp
-			sigmaZ = tmp$sigmaZ
-		}
-
 
 	}
 	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf))

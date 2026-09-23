@@ -15,19 +15,25 @@
 #' hence, posterior samples are drawn directly from this multivariate normal
 #' distribution.
 #'
+#' For \code{PMF_mixed} fits, the joint approximate posterior of
+#' \eqn{(\beta, u)} is sampled; the returned matrix contains the fixed effects,
+#' and the random-effect draws are stored in the \code{"ranef"} attribute.
+#'
 #' @param object A fitted object of class \code{"viord"}.
 #' @param nsim Integer. Number of posterior samples requested by the
 #'   \code{\link[stats]{simulate}} generic.
 #' @param seed Optional random seed.
 #' @param Y Optional. Ordinal response vector (factor or integer) required
-#'   only if \code{object$algorithm == "PMF"}.
-#' @param X Optional. Design matrix used in the model, required only if
-#'   \code{object$algorithm == "PMF"}.
+#'   only for PMF and PMF_mixed fits.
+#' @param X Optional. Design matrix used in the model, required only for
+#'   PMF and PMF_mixed fits.
 #' @param prior Optional. A list containing prior quantities
 #'   (\code{mu0}, \code{S0}, \code{Q0}), required only if
 #'   \code{object$algorithm == "PMF"}.
 #' @param nMC Integer. Number of Monte Carlo samples to draw. Defaults to
 #'   \code{nsim}.
+#' @param Z Optional. Random-effects design matrix used in the model, required
+#'   only if \code{object$algorithm == "PMF_mixed"}.
 #' @param ... Additional arguments (ignored).
 #'
 #' @return
@@ -62,14 +68,15 @@
 #'
 #' @export
 simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
-			  prior = NULL, nMC = nsim, ...) {
+			  prior = NULL, nMC = nsim, Z = NULL, ...) {
 	if(!is.null(seed)){
 		set.seed(seed)
 	}
 	method = toupper(object$algorithm)
 
-	if (method %in% c("PMF", "PMF_PRIOR")) {
-		# --- PMF / PMF_prior: sample from truncated normals ---
+	u_samp = NULL
+	if (method %in% c("PMF", "PMF_MIXED")) {
+		# --- PMF / PMF_mixed: sample from truncated normals ---
 		tresh  = object$alpha
 		xiZ    = object$est$xiZ
 		sigmaZ = object$est$sigmaZ
@@ -77,10 +84,14 @@ simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
 		li = tresh[Y]
 		ui = tresh[as.numeric(Y) + 1]
 
-		if (method == "PMF_PRIOR") {
-			tau_b  = object$est$sigma_b2_inv_mean
-			Q0_eff = tau_b * diag(ncol(X))
-			mu0    = object$prior$mu0
+		p_fix = ncol(X)
+		if (method == "PMF_MIXED") {
+			if (is.null(Z))
+				stop("For PMF_mixed simulation, you must specify Z.")
+			X      = cbind(X, Z)
+			jp     = pmf_mixed_prior(object)
+			Q0_eff = jp$Q0
+			mu0    = jp$mu0
 		} else {
 			Q0_eff = prior$Q0
 			mu0    = prior$mu0
@@ -108,6 +119,11 @@ simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
 		rm(ZMC, b0_samp)
 		gc()
 		out = t(beta_samp)
+		if (method == "PMF_MIXED") {
+			u_samp = out[, -seq_len(p_fix), drop = FALSE]
+			colnames(u_samp) = object$u.names
+			out = out[, seq_len(p_fix), drop = FALSE]
+		}
 
 	} else if (method %in% c("MF", "EP", "VB_PRIOR")) {
 		# --- MF, VB_prior and EP: Gaussian sampling from N(m, S) ---
@@ -124,11 +140,28 @@ simulate.viord = function(object, nsim = 1, seed = NULL, Y = NULL, X = NULL,
 		out = beta_samp
 
 	} else {
-		stop("Unknown method: must be one of 'PMF', 'PMF_prior', 'MF', 'VB_prior', or 'EP'.")
+		stop("Unknown method: must be one of 'PMF', 'PMF_mixed', 'MF', 'VB_prior', or 'EP'.")
 	}
 
 	class(out) = c("simulate_viord", class(out))
+	attr(out, "ranef") = u_samp
 	attr(out, "method") = method
 	attr(out, "nMC") = nMC
 	return(out)
+}
+
+
+# Joint Gaussian prior on (beta, u) implied by a PMF_mixed fit, at the
+# E[1/sigma2_g] used to build the returned q(z)
+#' @noRd
+pmf_mixed_prior = function(object) {
+	groups = as.character(object$Z_group)
+	g_id   = match(groups, unique(groups))
+	tau_u  = object$est$sigma_u2_inv_mean[g_id]
+	p = length(object$prior$mu0)
+	q = length(tau_u)
+	Q = matrix(0, p + q, p + q)
+	Q[seq_len(p), seq_len(p)] = object$prior$Q0
+	diag(Q)[p + seq_len(q)] = tau_u
+	list(mu0 = c(object$prior$mu0, rep(0, q)), Q0 = Q)
 }

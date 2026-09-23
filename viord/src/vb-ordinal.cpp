@@ -23,10 +23,17 @@ Rcpp::List vb_ordinal(
 		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose=false, // print info
-		const bool full_out=false // what is returned as output
+		const bool full_out=false, // what is returned as output
+		Rcpp::Nullable<Rcpp::List> init = R_NilValue // warm start
 		)
 {
+	if(conv_crit != "elbo" && conv_crit != "coef") {
+		Rcpp::stop("conv_crit must be either \"elbo\" or \"coef\".");
+	}
+	const bool crit_coef = (conv_crit == "coef");
+
 	int n = X.n_rows;
 	int p = X.n_cols;
 
@@ -49,6 +56,7 @@ Rcpp::List vb_ordinal(
 	arma::vec mu_beta(p, fill::zeros); //posterior mean of regression coefficients
 
 	arma::vec elbo_seq(maxit + 1);
+	arma::vec mu_beta_old(p, fill::zeros); // monitored by the "coef" criterion
 	int it = 0;
 	bool conv = false;
 	double lp;
@@ -62,6 +70,15 @@ Rcpp::List vb_ordinal(
 	arma::vec Vprior(p);
 	Vprior = V*Q0*mu0;
 
+
+	// --- Warm start: resume from a previous q(beta) ---
+	if(init.isNotNull()) {
+		Rcpp::List ini(init);
+		if(ini.containsElementNamed("m")) {
+			arma::vec m_in = Rcpp::as<arma::vec>(ini["m"]);
+			if(m_in.n_elem == static_cast<unsigned int>(p)) mu_beta = m_in;
+		}
+	}
 
 	while (!conv && it < maxit) {
 		it++;
@@ -84,7 +101,15 @@ Rcpp::List vb_ordinal(
 
 		elbo_seq(it) = elbo_mf(mu_beta, Q0, mu0, lp);
 
-		conv = ( abs(elbo_seq(it) - elbo_seq(it-1)) < tresh);
+		if(crit_coef) {
+			// monitor q(beta) itself rather than the ELBO
+			conv = (it > 1) && (max_rel_change(mu_beta, mu_beta_old) < tresh);
+			mu_beta_old = mu_beta;
+		} else {
+			// relative tolerance: the ELBO scales with n
+			conv = (std::abs(elbo_seq(it) - elbo_seq(it-1)) <
+			        tresh * (1.0 + std::abs(elbo_seq(it))));
+		}
 
 	}
 

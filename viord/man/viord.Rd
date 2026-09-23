@@ -10,7 +10,7 @@ viord(
   prior,
   Z = NULL,
   Z_group = NULL,
-  algorithm = c("EP", "MF", "PMF", "VB_prior"),
+  algorithm = c("EP", "MF", "PMF", "VB_prior", "PMF_mixed"),
   maxit = 100,
   conv_tr = 1e-06
 )
@@ -20,25 +20,28 @@ viord(
 
 \item{X}{Design matrix of covariates.}
 
+\item{prior}{A list containing prior parameters. For \code{"EP"}, \code{"MF"},
+and \code{"PMF"}, provide \code{mu0} (prior mean), \code{S0} (prior
+covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"},
+provide \code{mu0}, \code{a0}, and \code{b0},
+corresponding to \eqn{\beta \mid \sigma_b^2 \sim N(\mu_0, \sigma_b^2 I_p)}
+and \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. For \code{"VB_prior"} with random
+effects, also provide \code{au0} and \code{bu0}. For \code{"PMF_mixed"},
+provide \code{mu0} and \code{Q0} (known prior mean and precision of the
+fixed effects) and \code{s_sigma}, the scale of the half-Cauchy prior
+shared by all random-effect standard deviations.}
+
 \item{Z}{Optional random-effects design matrix. Random-effect structures can
 be column-bound in R before calling \code{viord}; columns belonging to the
 same variance component are identified by \code{Z_group}.}
 
 \item{Z_group}{Optional vector of length \code{ncol(Z)} indicating the
 variance-component group for each column of \code{Z}. Currently used only
-with \code{algorithm = "VB_prior"}.}
-
-\item{prior}{A list containing prior parameters. For \code{"EP"}, \code{"MF"},
-and \code{"PMF"}, provide \code{mu0} (prior mean), \code{S0} (prior
-covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"},
-provide \code{mu0}, \code{a0}, and \code{b0}, corresponding to
-\eqn{\beta \mid \sigma_b^2 \sim N(\mu_0, \sigma_b^2 I_p)} and
-\eqn{\sigma_b^2 \sim IG(a_0, b_0)}. If \code{Z} is supplied, also provide
-\code{au0} and \code{bu0} for the random-effect variance components
-\eqn{\sigma_{u,j}^2 \sim IG(a_{u0}, b_{u0})}.}
+with \code{algorithm = "VB_prior"} and \code{algorithm = "PMF_mixed"}.}
 
 \item{algorithm}{Character string specifying the inference algorithm to use:
-one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, or \code{"VB_prior"}.}
+one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, \code{"VB_prior"}, or
+\code{"PMF_mixed"}.}
 
 \item{maxit}{Integer specifying the maximum number of iterations used in both
 the alternating optimization of the thresholds and the internal optimization
@@ -60,10 +63,12 @@ A list containing the estimated model quantities and convergence information.
 }
 \description{
 Provides a unified interface for scalable approximate Bayesian inference under
-the cumulative probit model using one of four algorithms:
+the cumulative probit model using one of five algorithms:
 \emph{Expectation Propagation (EP)}, \emph{Mean-Field Variational Bayes (MF)},
-\emph{Partially Factorized Mean-Field (PMF)}, or a mean-field VB method with
-an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}).
+\emph{Partially Factorized Mean-Field (PMF)}, a mean-field VB method with
+an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}), or a
+PMF mixed model with half-Cauchy priors on the random-effect standard
+deviations (\code{PMF_mixed}).
 }
 \details{
 Threshold (cutoff) parameters are estimated via approximate marginal likelihood,
@@ -87,6 +92,11 @@ the fixed-effect prior is
 with \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. If \code{Z} is supplied, the
 random-effect coefficients have independent group-specific priors
 \eqn{u_j \mid \sigma_{u,g(j)}^2 \sim N(0, \sigma_{u,g(j)}^2)}.
+Under \code{"PMF_mixed"}, \eqn{\beta \sim N_p(\mu_0, Q_0^{-1})} with known
+\eqn{Q_0}, \eqn{u_j \mid \sigma_{u,g(j)}^2 \sim N(0, \sigma_{u,g(j)}^2)} and
+\eqn{\sigma_{u,g} \sim C^+(0, s_\sigma)}, represented as
+\eqn{\sigma_{u,g}^2 \mid a_g \sim IG(1/2, 1/a_g)},
+\eqn{a_g \sim IG(1/2, 1/s_\sigma^2)}.
 The thresholds \eqn{\alpha_1 < \dots < \alpha_{K-1}} are treated as nuisance parameters
 and estimated by maximizing the (approximate) marginal likelihood.
 
@@ -97,7 +107,9 @@ for inference conditional on the current thresholds:
   \item \code{"MF"} – Mean-Field Variational Bayes;
   \item \code{"PMF"} – Partially Factorized Mean-Field Variational Bayes;
   \item \code{"VB_prior"} – Mean-Field Variational Bayes with an
-    inverse-gamma update for the prior variances.
+    inverse-gamma update for the prior variances;
+  \item \code{"PMF_mixed"} – Partially Factorized Mean-Field for mixed
+    models, with half-Cauchy priors on the random-effect standard deviations.
 }
 }
 \examples{

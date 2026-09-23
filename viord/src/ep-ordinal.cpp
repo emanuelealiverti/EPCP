@@ -176,8 +176,9 @@ Rcpp::List ep_ordinal(
 		z_ep -= (z0 + sum(logZ));
 
 		// (alternatively, check convergenge of posterior means)
-		err = arma::sum(std::abs(z_ep_old - z_ep));
-		conv = (err < tresh);
+		// relative tolerance: log p_ep(y) scales with n
+		err = std::abs(z_ep_old - z_ep);
+		conv = (err < tresh * (1.0 + std::abs(z_ep)));
 		z_seq(it) = z_ep;
 		it++;
 

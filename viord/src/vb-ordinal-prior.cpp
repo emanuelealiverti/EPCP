@@ -146,10 +146,17 @@ Rcpp::List vb_ordinal_prior(
 		const double bu0 = NA_REAL, // Inv-Gamma prior scale for sigma_u2
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose=false, // print info
-		const bool full_out=false // what is returned as output
+		const bool full_out=false, // what is returned as output
+		Rcpp::Nullable<Rcpp::List> init = R_NilValue // warm start
 		)
 {
+	if(conv_crit != "elbo" && conv_crit != "coef") {
+		Rcpp::stop("conv_crit must be either \"elbo\" or \"coef\".");
+	}
+	const bool crit_coef = (conv_crit == "coef");
+
 	const int n = X.n_rows;
 	const int p = X.n_cols;
 
@@ -238,6 +245,30 @@ Rcpp::List vb_ordinal_prior(
 	int it = 0;
 	bool conv = false;
 	double lp = 0.0;
+	arma::vec state_old;
+
+	// --- Warm start: resume q(theta) and the variance factors ---
+	if(init.isNotNull()) {
+		Rcpp::List ini(init);
+		if(ini.containsElementNamed("m_joint")) {
+			arma::vec m_in = Rcpp::as<arma::vec>(ini["m_joint"]);
+			if(m_in.n_elem == static_cast<unsigned int>(d)) mu_theta = m_in;
+		}
+		if(ini.containsElementNamed("sigma_b2_b")) {
+			const double b_in = Rcpp::as<double>(ini["sigma_b2_b"]);
+			if(b_in > 0.0) {
+				b_sigma_b2 = b_in;
+				tau_b = a_sigma_b2 / b_sigma_b2;
+			}
+		}
+		if(ini.containsElementNamed("sigma_u2_b") && n_groups > 0) {
+			arma::vec bu_in = Rcpp::as<arma::vec>(ini["sigma_u2_b"]);
+			if(bu_in.n_elem == static_cast<unsigned int>(n_groups) && arma::all(bu_in > 0.0)) {
+				b_sigma_u2 = bu_in;
+				tau_u = a_sigma_u2 / b_sigma_u2;
+			}
+		}
+	}
 
 	while (!conv && it < maxit) {
 		Rcpp::checkUserInterrupt();
@@ -297,9 +328,24 @@ Rcpp::List vb_ordinal_prior(
 			tau_u_seq.row(it) = tau_u.t();
 		}
 
+		// state monitored by the "coef" criterion: (mu_theta, log tau_b, log tau_u)
+		arma::vec state(d + 1 + n_groups);
+		state.head(d) = mu_theta;
+		state(d) = std::log(tau_b);
+		if(n_groups > 0) state.tail(n_groups) = arma::log(tau_u);
+
 		if(it > 0) {
-			conv = (std::abs(elbo_seq(it) - elbo_seq(it-1)) < tresh);
+			if(crit_coef) {
+				// monitor the variational parameters themselves: the ELBO can be
+				// nearly flat while the variance components still move
+				conv = (max_rel_change(state, state_old) < tresh);
+			} else {
+				// relative tolerance: the ELBO scales with n
+				conv = (std::abs(elbo_seq(it) - elbo_seq(it-1)) <
+				        tresh * (1.0 + std::abs(elbo_seq(it))));
+			}
 		}
+		state_old = state;
 
 		it++;
 

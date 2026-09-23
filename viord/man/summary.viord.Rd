@@ -21,6 +21,5 @@ An object of class \code{"summary.viord"}.
 }
 \description{
 Summarizes the fitted variational ordinal model, showing posterior estimates,
-uncertainty, approximate log marginal likelihood, and the posterior
-inverse-gamma parameters for \code{VB_prior} fits.
+uncertainty, and approximate log marginal likelihood.
 }

@@ -95,6 +95,17 @@ double elbo_pmf(arma::mat X, arma::mat V, arma::mat XV,  arma::vec xiZ, arma::ve
 }
 
 
+double max_rel_change(const arma::vec& now, const arma::vec& old) {
+	if(now.n_elem != old.n_elem || now.n_elem == 0) return arma::datum::inf;
+	double worst = 0.0;
+	for(arma::uword j = 0; j < now.n_elem; j++) {
+		const double d = std::abs(now(j) - old(j)) / (1.0 + std::abs(now(j)));
+		if(d > worst) worst = d;
+	}
+	return worst;
+}
+
+
 double log2pi = log(2*M_PI);
 
 // Gaussian normalizing constant, used for computing the marginal likelihood for EP

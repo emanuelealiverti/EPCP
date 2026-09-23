@@ -35,6 +35,15 @@ double elbo_pmf(arma::mat X, arma::mat V, arma::mat XV,
                 arma::vec Xmu0, arma::vec mu0, double lp);
 
 // -----------------------------------------------------------------------------
+// Convergence utilities
+// -----------------------------------------------------------------------------
+
+// Largest per-component relative change, max_j |new_j - old_j| / (1 + |new_j|).
+// Used by the "coef" convergence criterion, which monitors the variational
+// parameters themselves rather than the ELBO.
+double max_rel_change(const arma::vec& now, const arma::vec& old);
+
+// -----------------------------------------------------------------------------
 // Gaussian log normalizing constant
 // -----------------------------------------------------------------------------
 

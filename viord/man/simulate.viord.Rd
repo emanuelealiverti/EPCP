@@ -12,6 +12,7 @@
   X = NULL,
   prior = NULL,
   nMC = nsim,
+  Z = NULL,
   ...
 )
 }
@@ -24,10 +25,10 @@
 \item{seed}{Optional random seed.}
 
 \item{Y}{Optional. Ordinal response vector (factor or integer) required
-only if \code{object$algorithm == "PMF"}.}
+only for PMF and PMF_mixed fits.}
 
-\item{X}{Optional. Design matrix used in the model, required only if
-\code{object$algorithm == "PMF"}.}
+\item{X}{Optional. Design matrix used in the model, required only for
+PMF and PMF_mixed fits.}
 
 \item{prior}{Optional. A list containing prior quantities
 (\code{mu0}, \code{S0}, \code{Q0}), required only if
@@ -35,6 +36,9 @@ only if \code{object$algorithm == "PMF"}.}
 
 \item{nMC}{Integer. Number of Monte Carlo samples to draw. Defaults to
 \code{nsim}.}
+
+\item{Z}{Optional. Random-effects design matrix used in the model, required
+only if \code{object$algorithm == "PMF_mixed"}.}
 
 \item{...}{Additional arguments (ignored).}
 }
@@ -58,6 +62,10 @@ For models estimated using \emph{Expectation Propagation (EP)},
 is Gaussian with mean \code{object$est$m} and covariance \code{object$est$S};
 hence, posterior samples are drawn directly from this multivariate normal
 distribution.
+
+For \code{PMF_mixed} fits, the joint approximate posterior of
+\eqn{(\beta, u)} is sampled; the returned matrix contains the fixed effects,
+and the random-effect draws are stored in the \code{"ranef"} attribute.
 }
 \examples{
 \dontrun{

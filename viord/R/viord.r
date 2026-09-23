@@ -4,8 +4,9 @@
 #' the cumulative probit model using one of five algorithms:
 #' \emph{Expectation Propagation (EP)}, \emph{Mean-Field Variational Bayes (MF)},
 #' \emph{Partially Factorized Mean-Field (PMF)}, a mean-field VB method with
-#' an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}), or
-#' the PMF counterpart with an inverse-gamma prior (\code{PMF_prior}).
+#' an inverse-gamma prior on the Gaussian prior variance (\code{VB_prior}), or a
+#' PMF mixed model with half-Cauchy priors on the random-effect standard
+#' deviations (\code{PMF_mixed}).
 #'
 #' Threshold (cutoff) parameters are estimated via approximate marginal likelihood,
 #' alternating between the optimization of the thresholds (via Newton–Raphson steps)
@@ -20,22 +21,44 @@
 #'   same variance component are identified by \code{Z_group}.
 #' @param Z_group Optional vector of length \code{ncol(Z)} indicating the
 #'   variance-component group for each column of \code{Z}. Currently used only
-#'   with \code{algorithm = "VB_prior"}.
+#'   with \code{algorithm = "VB_prior"} and \code{algorithm = "PMF_mixed"}.
 #' @param prior A list containing prior parameters. For \code{"EP"}, \code{"MF"},
 #'   and \code{"PMF"}, provide \code{mu0} (prior mean), \code{S0} (prior
-#'   covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"}
-#'   and \code{"PMF_prior"}, provide \code{mu0}, \code{a0}, and \code{b0},
+#'   covariance), and \code{Q0} (prior precision matrix). For \code{"VB_prior"},
+#'   provide \code{mu0}, \code{a0}, and \code{b0},
 #'   corresponding to \eqn{\beta \mid \sigma_b^2 \sim N(\mu_0, \sigma_b^2 I_p)}
 #'   and \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. For \code{"VB_prior"} with random
-#'   effects, also provide \code{au0} and \code{bu0}.
+#'   effects, also provide \code{au0} and \code{bu0}. For \code{"PMF_mixed"},
+#'   provide \code{mu0} and \code{Q0} (known prior mean and precision of the
+#'   fixed effects) and \code{s_sigma}, the scale of the half-Cauchy prior
+#'   shared by all random-effect standard deviations.
 #' @param algorithm Character string specifying the inference algorithm to use:
 #'   one of \code{"EP"}, \code{"MF"}, \code{"PMF"}, \code{"VB_prior"}, or
-#'   \code{"PMF_prior"}.
+#'   \code{"PMF_mixed"}.
 #' @param maxit Integer specifying the maximum number of iterations used in both
 #'   the alternating optimization of the thresholds and the internal optimization
 #'   based on the selected approximation algorithm.
 #' @param conv_tr Numeric value giving the convergence tolerance for both the
-#'   threshold optimization and the internal inference loop.
+#'   threshold optimization and the internal inference loop. The criterion is
+#'   relative: convergence is declared when the change in the objective (ELBO,
+#'   or the EP log marginal likelihood) is smaller than
+#'   \code{conv_tr * (1 + abs(objective))}, so that the same tolerance is
+#'   meaningful at any sample size.
+#' @param conv_crit Character string selecting the convergence criterion, used
+#'   both by the internal algorithm and by the threshold optimization. With
+#'   \code{"elbo"} (the default) convergence is monitored on the objective
+#'   (ELBO, or the EP log marginal likelihood); with \code{"coef"} it is
+#'   monitored on the variational parameters themselves — posterior means,
+#'   thresholds, and log variance components — via the largest relative change
+#'   \eqn{\max_j |\Delta \theta_j| / (1 + |\theta_j|)}. The latter is useful
+#'   when the objective is nearly flat along directions in which the variance
+#'   components still move, which is common with large \eqn{n}. Ignored by
+#'   \code{algorithm = "EP"}.
+#' @param warm_start Logical. If \code{TRUE} (the default), each threshold
+#'   iteration initializes the variational algorithm at the state reached by the
+#'   previous one, instead of restarting from scratch. This does not change the
+#'   fixed point, but it substantially reduces the number of internal iterations.
+#'   Ignored by \code{algorithm = "EP"}.
 #' @return A list containing the estimated model quantities and convergence information.  
 #'   The output includes:
 #'   \itemize{
@@ -61,6 +84,11 @@
 #' with \eqn{\sigma_b^2 \sim IG(a_0, b_0)}. If \code{Z} is supplied, the
 #' random-effect coefficients have independent group-specific priors
 #' \eqn{u_j \mid \sigma_{u,g(j)}^2 \sim N(0, \sigma_{u,g(j)}^2)}.
+#' Under \code{"PMF_mixed"}, \eqn{\beta \sim N_p(\mu_0, Q_0^{-1})} with known
+#' \eqn{Q_0}, \eqn{u_j \mid \sigma_{u,g(j)}^2 \sim N(0, \sigma_{u,g(j)}^2)} and
+#' \eqn{\sigma_{u,g} \sim C^+(0, s_\sigma)}, represented as
+#' \eqn{\sigma_{u,g}^2 \mid a_g \sim IG(1/2, 1/a_g)},
+#' \eqn{a_g \sim IG(1/2, 1/s_\sigma^2)}.
 #' The thresholds \eqn{\alpha_1 < \dots < \alpha_{K-1}} are treated as nuisance parameters
 #' and estimated by maximizing the (approximate) marginal likelihood.
 #'
@@ -72,8 +100,8 @@
 #'   \item \code{"PMF"} – Partially Factorized Mean-Field Variational Bayes;
 #'   \item \code{"VB_prior"} – Mean-Field Variational Bayes with an
 #'     inverse-gamma update for the prior variances;
-#'   \item \code{"PMF_prior"} – Partially Factorized Mean-Field with an
-#'     inverse-gamma update for the prior variance.
+#'   \item \code{"PMF_mixed"} – Partially Factorized Mean-Field for mixed
+#'     models, with half-Cauchy priors on the random-effect standard deviations.
 #' }
 #'
 #' @references
@@ -118,12 +146,15 @@
 #' @export
 viord = function(Y, X, prior,
                  Z = NULL, Z_group = NULL,
-                 algorithm = c("EP", "MF", "PMF", "VB_prior", "PMF_prior"),
-                 maxit = 100, conv_tr = 1e-6) {
+                 algorithm = c("EP", "MF", "PMF", "VB_prior", "PMF_mixed"),
+                 maxit = 100, conv_tr = 1e-6, warm_start = TRUE,
+                 conv_crit = c("elbo", "coef")) {
+
+  conv_crit <- match.arg(conv_crit)
 
   algorithm <- match.arg(algorithm)
-  if (algorithm != "VB_prior" && !is.null(Z) && NCOL(Z) > 1) {
-    stop("Z and Z_group are currently supported only with algorithm = 'VB_prior'.")
+  if (!(algorithm %in% c("VB_prior", "PMF_mixed")) && !is.null(Z) && NCOL(Z) > 1) {
+    stop("Z and Z_group are currently supported only with algorithm = 'VB_prior' or 'PMF_mixed'.")
   }
 
   if (algorithm == "EP") {
@@ -135,11 +166,13 @@ viord = function(Y, X, prior,
                         MF        = "MF",
                         PMF       = "PMF",
                         VB_prior  = "VB_prior",
-                        PMF_prior = "PMF_prior")
+                        PMF_mixed = "PMF_mixed")
     out <- optim_vb_ml(Y = Y, X = X, prior = prior,
                        maxit = maxit, conv_tr = conv_tr,
                        vb_factor = vb_factor,
-                       Z = Z, Z_group = Z_group)
+                       Z = Z, Z_group = Z_group,
+                       warm_start = warm_start,
+                       conv_crit = conv_crit)
   }
 
   out$coef.names = colnames(X)
