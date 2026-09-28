@@ -26,6 +26,7 @@ Rcpp::List ep_ordinal(
 		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const int min_iter = 1, // iterations before convergence may be declared
 		const bool verbose=false, // print information
 		const bool full_out=false // what is returned as output
 		)
@@ -106,6 +107,13 @@ Rcpp::List ep_ordinal(
 	// sequence of p(y,q)
 	arma:: vec z_seq(maxit);
 
+	// Cavity moments of the latent z_i, overwritten at every sweep so that the
+	// last one is returned: log Z_i depends on the thresholds through these, so
+	// the threshold step needs them (mean xi' Sigma_{-i} r_{-i}, scale
+	// sqrt(1 + xi' Sigma_{-i} xi)).
+	arma::vec cavity_mean(n, fill::zeros);
+	arma::vec cavity_sd(n, fill::ones);
+
 	while (!conv && it < maxit) {
 		z_ep_old = z_ep;
 
@@ -133,6 +141,9 @@ Rcpp::List ep_ordinal(
 			sisq = std::sqrt(si);
 
 			if(si > 0.0) {
+
+				cavity_mean(i) = xi_Si_mi;
+				cavity_sd(i)   = sisq;
 
 				// Truncation values
 				Ui = (l(i) - xi_Si_mi) / sisq;
@@ -176,8 +187,9 @@ Rcpp::List ep_ordinal(
 		z_ep -= (z0 + sum(logZ));
 
 		// (alternatively, check convergenge of posterior means)
-		err = arma::sum(std::abs(z_ep_old - z_ep));
-		conv = (err < tresh);
+		// relative tolerance: log p_ep(y) scales with n
+		err = std::abs(z_ep_old - z_ep);
+		conv = (it + 1 >= min_iter) && (err < tresh * (1.0 + std::abs(z_ep)));
 		z_seq(it) = z_ep;
 		it++;
 
@@ -191,6 +203,9 @@ Rcpp::List ep_ordinal(
 	
 	// Output
 	Rcpp::List out;
+	// always returned: the threshold step needs the cavity moments
+	out["cavity_mean"] = cavity_mean;
+	out["cavity_sd"]   = cavity_sd;
 	if(full_out) {
 		out["S"] = S_ep;
 		out["m"] = m_ep;

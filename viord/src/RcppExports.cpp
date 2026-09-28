@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // ep_ordinal
-Rcpp::List ep_ordinal(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& S0, const arma::mat& Q0, const int maxit, const double tresh, const bool verbose, const bool full_out);
-RcppExport SEXP _viord_ep_ordinal(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP S0SEXP, SEXP Q0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
+Rcpp::List ep_ordinal(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& S0, const arma::mat& Q0, const int maxit, const double tresh, const int min_iter, const bool verbose, const bool full_out);
+RcppExport SEXP _viord_ep_ordinal(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP S0SEXP, SEXP Q0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP min_iterSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -25,15 +25,16 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type Q0(Q0SEXP);
     Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
     Rcpp::traits::input_parameter< const double >::type tresh(treshSEXP);
+    Rcpp::traits::input_parameter< const int >::type min_iter(min_iterSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const bool >::type full_out(full_outSEXP);
-    rcpp_result_gen = Rcpp::wrap(ep_ordinal(Y, X, alpha, mu0, S0, Q0, maxit, tresh, verbose, full_out));
+    rcpp_result_gen = Rcpp::wrap(ep_ordinal(Y, X, alpha, mu0, S0, Q0, maxit, tresh, min_iter, verbose, full_out));
     return rcpp_result_gen;
 END_RCPP
 }
-// pmf_ordinal_prior
-Rcpp::List pmf_ordinal_prior(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const double a0, const double b0, const int maxit, const double tresh, const bool verbose, const bool full_out);
-RcppExport SEXP _viord_pmf_ordinal_prior(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
+// pmf_ordinal_mixed
+Rcpp::List pmf_ordinal_mixed(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& Q0, const arma::mat& Z, const arma::uvec& Z_group, const double s_sigma, const int maxit, const double tresh, const int min_iter, const std::string conv_crit, const bool verbose, const bool full_out, Rcpp::Nullable<Rcpp::List> init);
+RcppExport SEXP _viord_pmf_ordinal_mixed(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP Q0SEXP, SEXP ZSEXP, SEXP Z_groupSEXP, SEXP s_sigmaSEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP min_iterSEXP, SEXP conv_critSEXP, SEXP verboseSEXP, SEXP full_outSEXP, SEXP initSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -41,19 +42,40 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type alpha(alphaSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type mu0(mu0SEXP);
-    Rcpp::traits::input_parameter< const double >::type a0(a0SEXP);
-    Rcpp::traits::input_parameter< const double >::type b0(b0SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Q0(Q0SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type Z_group(Z_groupSEXP);
+    Rcpp::traits::input_parameter< const double >::type s_sigma(s_sigmaSEXP);
     Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
     Rcpp::traits::input_parameter< const double >::type tresh(treshSEXP);
+    Rcpp::traits::input_parameter< const int >::type min_iter(min_iterSEXP);
+    Rcpp::traits::input_parameter< const std::string >::type conv_crit(conv_critSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const bool >::type full_out(full_outSEXP);
-    rcpp_result_gen = Rcpp::wrap(pmf_ordinal_prior(Y, X, alpha, mu0, a0, b0, maxit, tresh, verbose, full_out));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::List> >::type init(initSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmf_ordinal_mixed(Y, X, alpha, mu0, Q0, Z, Z_group, s_sigma, maxit, tresh, min_iter, conv_crit, verbose, full_out, init));
+    return rcpp_result_gen;
+END_RCPP
+}
+// newton_thresholds
+Rcpp::List newton_thresholds(const arma::ivec& y, const arma::vec& xi, const arma::vec& sigma, const arma::vec& start, const int maxit, const double tol);
+RcppExport SEXP _viord_newton_thresholds(SEXP ySEXP, SEXP xiSEXP, SEXP sigmaSEXP, SEXP startSEXP, SEXP maxitSEXP, SEXP tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::ivec& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type xi(xiSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type start(startSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
+    Rcpp::traits::input_parameter< const double >::type tol(tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(newton_thresholds(y, xi, sigma, start, maxit, tol));
     return rcpp_result_gen;
 END_RCPP
 }
 // vb_ordinal_prior
-Rcpp::List vb_ordinal_prior(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const double a0, const double b0, const arma::mat& Z, const arma::uvec& Z_group, const double au0, const double bu0, const int maxit, const double tresh, const bool verbose, const bool full_out);
-RcppExport SEXP _viord_vb_ordinal_prior(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP ZSEXP, SEXP Z_groupSEXP, SEXP au0SEXP, SEXP bu0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
+Rcpp::List vb_ordinal_prior(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const double a0, const double b0, const arma::mat& Z, const arma::uvec& Z_group, const double au0, const double bu0, const int maxit, const double tresh, const int min_iter, const std::string conv_crit, const bool verbose, const bool full_out, Rcpp::Nullable<Rcpp::List> init);
+RcppExport SEXP _viord_vb_ordinal_prior(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP a0SEXP, SEXP b0SEXP, SEXP ZSEXP, SEXP Z_groupSEXP, SEXP au0SEXP, SEXP bu0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP min_iterSEXP, SEXP conv_critSEXP, SEXP verboseSEXP, SEXP full_outSEXP, SEXP initSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -69,15 +91,18 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const double >::type bu0(bu0SEXP);
     Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
     Rcpp::traits::input_parameter< const double >::type tresh(treshSEXP);
+    Rcpp::traits::input_parameter< const int >::type min_iter(min_iterSEXP);
+    Rcpp::traits::input_parameter< const std::string >::type conv_crit(conv_critSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const bool >::type full_out(full_outSEXP);
-    rcpp_result_gen = Rcpp::wrap(vb_ordinal_prior(Y, X, alpha, mu0, a0, b0, Z, Z_group, au0, bu0, maxit, tresh, verbose, full_out));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::List> >::type init(initSEXP);
+    rcpp_result_gen = Rcpp::wrap(vb_ordinal_prior(Y, X, alpha, mu0, a0, b0, Z, Z_group, au0, bu0, maxit, tresh, min_iter, conv_crit, verbose, full_out, init));
     return rcpp_result_gen;
 END_RCPP
 }
 // vb_ordinal
-Rcpp::List vb_ordinal(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& S0, const arma::mat& Q0, const int maxit, const double tresh, const bool verbose, const bool full_out);
-RcppExport SEXP _viord_vb_ordinal(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP S0SEXP, SEXP Q0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
+Rcpp::List vb_ordinal(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& S0, const arma::mat& Q0, const int maxit, const double tresh, const int min_iter, const std::string conv_crit, const bool verbose, const bool full_out, Rcpp::Nullable<Rcpp::List> init);
+RcppExport SEXP _viord_vb_ordinal(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP S0SEXP, SEXP Q0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP min_iterSEXP, SEXP conv_critSEXP, SEXP verboseSEXP, SEXP full_outSEXP, SEXP initSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -89,15 +114,18 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type Q0(Q0SEXP);
     Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
     Rcpp::traits::input_parameter< const double >::type tresh(treshSEXP);
+    Rcpp::traits::input_parameter< const int >::type min_iter(min_iterSEXP);
+    Rcpp::traits::input_parameter< const std::string >::type conv_crit(conv_critSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const bool >::type full_out(full_outSEXP);
-    rcpp_result_gen = Rcpp::wrap(vb_ordinal(Y, X, alpha, mu0, S0, Q0, maxit, tresh, verbose, full_out));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::List> >::type init(initSEXP);
+    rcpp_result_gen = Rcpp::wrap(vb_ordinal(Y, X, alpha, mu0, S0, Q0, maxit, tresh, min_iter, conv_crit, verbose, full_out, init));
     return rcpp_result_gen;
 END_RCPP
 }
 // pmf_ordinal
-Rcpp::List pmf_ordinal(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& S0, const arma::mat& Q0, const int maxit, const double tresh, const bool verbose, const bool full_out);
-RcppExport SEXP _viord_pmf_ordinal(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP S0SEXP, SEXP Q0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP verboseSEXP, SEXP full_outSEXP) {
+Rcpp::List pmf_ordinal(const arma::vec& Y, const arma::mat& X, const arma::vec& alpha, const arma::vec& mu0, const arma::mat& S0, const arma::mat& Q0, const int maxit, const double tresh, const int min_iter, const std::string conv_crit, const bool verbose, const bool full_out, Rcpp::Nullable<Rcpp::List> init);
+RcppExport SEXP _viord_pmf_ordinal(SEXP YSEXP, SEXP XSEXP, SEXP alphaSEXP, SEXP mu0SEXP, SEXP S0SEXP, SEXP Q0SEXP, SEXP maxitSEXP, SEXP treshSEXP, SEXP min_iterSEXP, SEXP conv_critSEXP, SEXP verboseSEXP, SEXP full_outSEXP, SEXP initSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -109,19 +137,23 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type Q0(Q0SEXP);
     Rcpp::traits::input_parameter< const int >::type maxit(maxitSEXP);
     Rcpp::traits::input_parameter< const double >::type tresh(treshSEXP);
+    Rcpp::traits::input_parameter< const int >::type min_iter(min_iterSEXP);
+    Rcpp::traits::input_parameter< const std::string >::type conv_crit(conv_critSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const bool >::type full_out(full_outSEXP);
-    rcpp_result_gen = Rcpp::wrap(pmf_ordinal(Y, X, alpha, mu0, S0, Q0, maxit, tresh, verbose, full_out));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::List> >::type init(initSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmf_ordinal(Y, X, alpha, mu0, S0, Q0, maxit, tresh, min_iter, conv_crit, verbose, full_out, init));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_viord_ep_ordinal", (DL_FUNC) &_viord_ep_ordinal, 10},
-    {"_viord_pmf_ordinal_prior", (DL_FUNC) &_viord_pmf_ordinal_prior, 10},
-    {"_viord_vb_ordinal_prior", (DL_FUNC) &_viord_vb_ordinal_prior, 14},
-    {"_viord_vb_ordinal", (DL_FUNC) &_viord_vb_ordinal, 10},
-    {"_viord_pmf_ordinal", (DL_FUNC) &_viord_pmf_ordinal, 10},
+    {"_viord_ep_ordinal", (DL_FUNC) &_viord_ep_ordinal, 11},
+    {"_viord_pmf_ordinal_mixed", (DL_FUNC) &_viord_pmf_ordinal_mixed, 15},
+    {"_viord_newton_thresholds", (DL_FUNC) &_viord_newton_thresholds, 6},
+    {"_viord_vb_ordinal_prior", (DL_FUNC) &_viord_vb_ordinal_prior, 17},
+    {"_viord_vb_ordinal", (DL_FUNC) &_viord_vb_ordinal, 13},
+    {"_viord_pmf_ordinal", (DL_FUNC) &_viord_pmf_ordinal, 13},
     {NULL, NULL, 0}
 };
 

@@ -23,10 +23,18 @@ Rcpp::List pmf_ordinal(
 		const arma::mat& Q0, // prior precision
 		const int maxit = 100, // max number of iterations
 		const double tresh = 1e-6, // tolerance
+		const int min_iter = 1, // iterations before convergence may be declared
+		const std::string conv_crit = "elbo", // "elbo" or "coef"
 		const bool verbose=false, // print info
-		const bool full_out=false // return elbo, z, etc
+		const bool full_out=false, // return elbo, z, etc
+		Rcpp::Nullable<Rcpp::List> init = R_NilValue // warm start
 		)
 {
+	if(conv_crit != "elbo" && conv_crit != "coef") {
+		Rcpp::stop("conv_crit must be either \"elbo\" or \"coef\".");
+	}
+	const bool crit_coef = (conv_crit == "coef");
+
 	int n = X.n_rows;
 	int p = X.n_cols;
 
@@ -83,6 +91,20 @@ Rcpp::List pmf_ordinal(
 	}
 //	arma::vec varZ(n, fill::zeros); //for elbo only
 
+	// --- Warm start: resume the sweep from a previous q(z) ---
+	if(init.isNotNull()) {
+		Rcpp::List ini(init);
+		if(ini.containsElementNamed("meanZ")) {
+			arma::vec m_in = Rcpp::as<arma::vec>(ini["meanZ"]);
+			if(m_in.n_elem == static_cast<unsigned int>(n)) {
+				meanZ = m_in;
+				D.row(n - 1) = (X.t() * meanZ).t() - X.row(n - 1) * meanZ(n - 1);
+			}
+		}
+	}
+
+	arma::vec mb_old(p, fill::zeros); // monitored by the "coef" criterion
+
 	int im1;
 	while (!conv && it < maxit) {
 		it++;
@@ -104,7 +126,19 @@ Rcpp::List pmf_ordinal(
 
 		//elbo_seq(it) = elbo(In_m_H, xiZ, sigma2Z, meanZ,  Xmu0, lp);
 		elbo_seq(it) = elbo_pmf(X, V, XV, xiZ, sigma2Z, meanZ, Xmu0, mu0, lp);
-		conv = ( abs(elbo_seq(it) - elbo_seq(it-1)) < tresh);
+
+		if(crit_coef) {
+			// monitor the marginal mean of q(beta) rather than the ELBO
+			arma::vec mb = XV.t() * meanZ + (V * Q0 * mu0);
+			conv = (it > 1) && (it >= min_iter) &&
+				(max_rel_change(mb, mb_old) < tresh);
+			mb_old = mb;
+		} else {
+			// relative tolerance: the ELBO scales with n
+			conv = (it >= min_iter) &&
+				(std::abs(elbo_seq(it) - elbo_seq(it-1)) <
+				 tresh * (1.0 + std::abs(elbo_seq(it))));
+		}
 	}
 
 	arma::vec sdZ(n);
@@ -130,13 +164,14 @@ Rcpp::List pmf_ordinal(
 
 	// Output
 	Rcpp::List out;
+	out["meanZ"]  = meanZ;  // for warm starting a subsequent fit
+	out["sigmaZ"] = sigmaZ; // location and scale of q(z): needed by the
+	out["xiZ"]    = xiZ;    // threshold step, so always returned
 	if(full_out) {
 		// marginal moments for \beta
 		out["m"] = meanBeta;
 		out["S"] = varBeta;
 		// Quantities for truncated normal simulations
-		out["sigmaZ"] = sigmaZ;
-		out["xiZ"] = xiZ;
 		out["elbo_seq"] = elbo_seq.subvec(1,it);
 		out["elbo"] = elbo_seq(it);
 		out["conv"] = conv;

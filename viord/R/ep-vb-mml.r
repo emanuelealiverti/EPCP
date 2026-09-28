@@ -22,6 +22,42 @@ check_spd_matrix = function(x, name, p){
 	invisible(TRUE)
 }
 
+# One threshold update. Both methods maximise the same objective,
+#   sum_i log[ Phi((alpha_{y_i} - loc_i)/scale_i) - Phi((alpha_{y_i-1} - loc_i)/scale_i) ],
+# "newton" through the dedicated Newton-Raphson step (tridiagonal Hessian, warm
+# started at the current thresholds), "clm" through ordinal::clm.fit, which
+# takes the scale as an offset on the log scale.
+#' @noRd
+update_alpha = function(y, loc, scale = NULL, start = NULL, method = "newton"){
+	if(is.null(scale)) scale = rep(1, length(loc))
+	if(method == "clm"){
+		if(!requireNamespace("ordinal", quietly = TRUE))
+			stop("alpha_method = \"clm\" requires the ordinal package.")
+		if(all(scale == 1)){
+			suppressWarnings(ordinal::clm.fit(y = y, offset = loc,
+							  link = 'probit')$alpha)
+		} else {
+			suppressWarnings(ordinal::clm.fit(y = y, offset = loc,
+							  S.offset = log(scale),
+							  link = 'probit')$alpha)
+		}
+	} else {
+		if(is.null(start)) start = init_alpha(y, loc, scale)
+		newton_thresholds(as.integer(y), loc, scale, start)$alpha
+	}
+}
+
+# Starting thresholds: quantiles of the implied marginal distribution of z,
+# used only when no previous thresholds are available.
+#' @noRd
+init_alpha = function(y, loc, scale){
+	prop = cumsum(table(y)) / length(y)
+	prop = prop[-length(prop)]
+	prop = pmin(pmax(prop, 1e-6), 1 - 1e-6)
+	sd_z = sqrt(stats::var(loc) + mean(scale^2))
+	as.numeric(mean(loc) + sd_z * stats::qnorm(prop))
+}
+
 #' @noRd
 check_random_effects = function(Z = NULL, Z_group = NULL, n){
 	if(is.null(Z)){
@@ -80,7 +116,7 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 
 	check_mu0()
 
-	if(algorithm %in% c("VB_prior", "PMF_prior")){
+	if(algorithm == "VB_prior"){
 		if(is.null(prior$a0) || is.null(prior$b0)){
 			stop(sprintf("For %s, prior must contain mu0, a0, and b0.", algorithm))
 		}
@@ -101,6 +137,17 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 				stop("For VB_prior, prior$bu0 must be a strictly positive finite number.")
 			}
 		}
+	} else if(algorithm == "PMF_mixed"){
+		if(!has_random){
+			stop("PMF_mixed requires a random-effects design Z (with at least two columns) and Z_group.")
+		}
+		if(is.null(prior$Q0)){
+			stop("For PMF_mixed, prior must contain mu0, Q0, and s_sigma.")
+		}
+		check_spd_matrix(prior$Q0, "prior$Q0 for PMF_mixed", p)
+		if(!is.numeric(prior$s_sigma) || length(prior$s_sigma) != 1 || !is.finite(prior$s_sigma) || prior$s_sigma <= 0){
+			stop("For PMF_mixed, prior$s_sigma must be a strictly positive finite number.")
+		}
 	} else {
 		if(is.null(prior$S0) || is.null(prior$Q0)){
 			stop(sprintf("For %s, prior must contain mu0, S0, and Q0.", algorithm))
@@ -113,134 +160,195 @@ check_prior = function(prior, p, algorithm, has_random = FALSE){
 }
 
 #' @noRd
-optim_ep_ml = function(Y,X,prior, maxit = 100, conv_tr = 1e-6){
+optim_ep_ml = function(Y, X, prior, control = viord.control()){
 
 	check_prior(prior, NCOL(X), "EP")
 
-	
-	# optimizer for alpha
-	optim_alpha = function(response, lin_pred,...) {
-		suppressWarnings(ordinal::clm.fit(y=response,offset=lin_pred, link = 'probit')$alpha)
+	# Under EP the term depending on the thresholds is sum_i log Z_i, where Z_i is
+	# a normal probability with the CAVITY moments of z_i, not the posterior ones:
+	# location xi' Sigma_{-i} r_{-i} and scale sqrt(1 + xi' Sigma_{-i} xi) > 1.
+	# Before the first fit no cavity is available and the posterior linear
+	# predictor with unit scale is used instead.
+	optim_alpha = function(response, loc, scale, start) {
+		update_alpha(response, loc, scale, start, control$alpha_method)
 	}
-	# initial estimate
-	conv = F
+
+	run_ep = function(alpha) {
+		ep_ordinal(Y = as.numeric(Y),
+			   X = X,
+			   alpha = c(-Inf, alpha, Inf),
+			   mu0 = prior$mu0,
+			   S0 = prior$S0,
+			   Q0 = prior$Q0,
+			   maxit = control$maxit_inner,
+			   tresh = control$tol_inner,
+			   min_iter = control$min_iter,
+			   verbose = control$verbose >= 2,
+			   full_out = control$full_out)
+	}
+
+	if(control$fix_alpha){
+		alpha = control$alpha_init
+		tmp = run_ep(alpha)
+		return(list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = 1L,
+			    'conv_outer' = TRUE))
+	}
+
+	conv = FALSE
 	ll_old = Inf
 	it = 0
-	lp = numeric(NROW(X))
-	while(!conv & it < maxit) {
-		alpha = optim_alpha(Y, lp)
-		tmp = ep_ordinal(Y = as.numeric(Y),
-				 X = X,
-				 alpha = c(-Inf, alpha, Inf), 
-				 mu0 = prior$mu0,
-				 S0 = prior$S0,
-				 Q0 = prior$Q0,
-				 maxit = maxit, 
-				 full_out = T)
-		ll = tmp$logZ
-		lp = drop(X %*% tmp$m)
-		conv = abs(ll - ll_old) < conv_tr
-		ll_old = ll
+	alpha = control$alpha_init
+	target = list(loc = numeric(NROW(X)), scale = NULL)
 
+	while(!conv & it < control$maxit_outer) {
+		if(is.null(alpha) || it > 0)
+			alpha = optim_alpha(Y, target$loc, target$scale, alpha)
+		tmp = run_ep(alpha)
+		ll = tmp$logZ
+		target = if(is.null(tmp$cavity_mean))
+				list(loc = drop(X %*% tmp$m), scale = NULL)
+			else list(loc = tmp$cavity_mean, scale = tmp$cavity_sd)
+		# relative tolerance: the log marginal likelihood scales with n
+		conv = (it + 1 >= control$min_iter) &&
+			abs(ll - ll_old) < control$tol_outer * (1 + abs(ll))
+		ll_old = ll
 		it = it + 1
+		if(control$verbose >= 1)
+			cat(sprintf("outer %3d | logZ %.6g%s\n", it, ll,
+				    if(conv) " | converged" else ""))
 	}
-	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf))
+	if(!conv && control$verbose >= 1)
+		cat("outer loop reached maxit_outer without converging\n")
+
+	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = it,
+		   'conv_outer' = conv)
 	return(out)
 }
 
 
 
 #' @noRd
-optim_vb_ml = function(Y,X,prior, 
-		       maxit = 100, conv_tr = 1e-6,
-		       method = 'grad', vb_factor = "MF", full_path = F,
-		       Z = NULL, Z_group = NULL){
+optim_vb_ml = function(Y, X, prior, vb_factor = "MF",
+		       Z = NULL, Z_group = NULL, control = viord.control()){
 
-	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior", "PMF_prior"))
+	vb_factor = match.arg(vb_factor, c("MF", "PMF", "VB_prior", "PMF_mixed"))
 	random = check_random_effects(Z = Z, Z_group = Z_group, n = NROW(X))
-	if(random$has_random && vb_factor != "VB_prior"){
-		stop("Z and Z_group are currently supported only with algorithm = 'VB_prior'.")
+	if(random$has_random && !(vb_factor %in% c("VB_prior", "PMF_mixed"))){
+		stop("Z and Z_group are currently supported only with algorithm = 'VB_prior' or 'PMF_mixed'.")
 	}
 	check_prior(prior, NCOL(X), vb_factor, has_random = random$has_random)
 
-	# optimizer for alpha (Newton Rapson)
-	optim_alpha = function(response, lin_pred, ...) {
-		       suppressWarnings(ordinal::clm.fit(y=response,offset=lin_pred, link = 'probit',...)$alpha)
+	# Optimizer for alpha. The only ELBO term depending on alpha is
+	#   sum_i log[ Phi((alpha_{y_i} - xi_i)/sigma_i) - Phi((alpha_{y_i-1} - xi_i)/sigma_i) ],
+	# where (xi_i, sigma_i) are the location and scale of q(z_i). Under MF the
+	# scale is 1 and xi_i is the linear predictor, but under PMF q(z_i) has its
+	# own location xiZ and scale sigmaZ > 1. Ignoring the scale shrinks the
+	# thresholds towards zero.
+	optim_alpha = function(response, lin_pred, scale = NULL, start = NULL) {
+		update_alpha(response, lin_pred, scale, start, control$alpha_method)
 	}
-	conv   =  F
-	conv_warm = F
-	ll_old =  Inf
-	it     =  0
-	lp     =  rep(0, NROW(X))
-	# quantities used by PMF
-	sigmaZ =  rep(1,NROW(X))
-	muZ    =  rep(0, NROW(X))
-	# initialize V and H
 
-	while(!conv & it < maxit) {
-		alpha = optim_alpha(response = Y, lp = lp, sigmaZ = sigmaZ, muZ = muZ)
-		if(vb_factor == "VB_prior"){
-			au0 = if(random$has_random) prior$au0 else NA_real_
-			bu0 = if(random$has_random) prior$bu0 else NA_real_
-			tmp = vb_ordinal_prior(Y = as.numeric(Y),
-					X = X,
-					alpha = c(-Inf, alpha, Inf),
-					mu0 = prior$mu0,
-					a0 = prior$a0,
-					b0 = prior$b0,
-					Z = random$Z,
-					Z_group = random$Z_group,
-					au0 = au0,
-					bu0 = bu0,
-					maxit = maxit,
-					full_out = T)
-		} else if(vb_factor == "PMF_prior"){
-			tmp = pmf_ordinal_prior(Y = as.numeric(Y),
-					X = X,
-					alpha = c(-Inf, alpha, Inf),
-					mu0 = prior$mu0,
-					a0 = prior$a0,
-					b0 = prior$b0,
-					maxit = maxit,
-					full_out = T)
+	# location and scale of q(z) that define the threshold step
+	alpha_target = function(tmp, lp) {
+		if(vb_factor %in% c("PMF", "PMF_mixed") && !is.null(tmp$xiZ)){
+			list(loc = tmp$xiZ, scale = tmp$sigmaZ)
 		} else {
-			tmp = switch(vb_factor,
-				     MF = vb_ordinal(Y = as.numeric(Y),
-						      X = X,
-						      alpha = c(-Inf, alpha, Inf),
-						      mu0 = prior$mu0,
-						      S0 = prior$S0,
-						      Q0 = prior$Q0,
-						      maxit = maxit,
-						      full_out = T),
-				     PMF = pmf_ordinal(Y = as.numeric(Y),
-							X = X,
-							alpha = c(-Inf, alpha, Inf),
-							mu0 = prior$mu0,
-							S0 = prior$S0,
-							Q0 = prior$Q0,
-							maxit = maxit,
-							full_out = T))
+			list(loc = lp, scale = NULL)
 		}
+	}
+
+	# state carried from one threshold iteration to the next
+	warm_state = function(tmp) {
+		switch(vb_factor,
+		       MF        = tmp["m"],
+		       PMF       = tmp["meanZ"],
+		       VB_prior  = tmp[c("m_joint", "sigma_b2_b", "sigma_u2_b")],
+		       PMF_mixed = tmp[c("meanZ", "sigma_u2_b", "a_u_b")])
+	}
+
+	run_inner = function(alpha, init) {
+		common = list(Y = as.numeric(Y),
+			      X = X,
+			      alpha = c(-Inf, alpha, Inf),
+			      mu0 = prior$mu0,
+			      maxit = control$maxit_inner,
+			      tresh = control$tol_inner,
+			      min_iter = control$min_iter,
+			      conv_crit = control$conv_crit,
+			      verbose = control$verbose >= 2,
+			      full_out = control$full_out,
+			      init = init)
+		args = switch(vb_factor,
+			MF        = c(common, list(S0 = prior$S0, Q0 = prior$Q0)),
+			PMF       = c(common, list(S0 = prior$S0, Q0 = prior$Q0)),
+			VB_prior  = c(common, list(a0 = prior$a0, b0 = prior$b0,
+						   Z = random$Z, Z_group = random$Z_group,
+						   au0 = if(random$has_random) prior$au0 else NA_real_,
+						   bu0 = if(random$has_random) prior$bu0 else NA_real_)),
+			PMF_mixed = c(common, list(Q0 = prior$Q0,
+						   Z = random$Z, Z_group = random$Z_group,
+						   s_sigma = prior$s_sigma)))
+		fun = switch(vb_factor,
+			     MF        = vb_ordinal,
+			     PMF       = pmf_ordinal,
+			     VB_prior  = vb_ordinal_prior,
+			     PMF_mixed = pmf_ordinal_mixed)
+		do.call(fun, args)
+	}
+
+	if(control$fix_alpha){
+		alpha = control$alpha_init
+		tmp = run_inner(alpha, NULL)
+		return(list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = 1L,
+			    'conv_outer' = TRUE))
+	}
+
+	conv   = FALSE
+	ll_old = Inf
+	it     = 0
+	alpha  = control$alpha_init
+	init   = NULL
+	target = list(loc = rep(0, NROW(X)), scale = NULL)
+	state_old = NULL # used by the "coef" convergence criterion
+
+	while(!conv & it < control$maxit_outer) {
+		if(is.null(alpha) || it > 0)
+			alpha = optim_alpha(Y, target$loc, target$scale, alpha)
+		tmp = run_inner(alpha, init)
 		ll = tmp$elbo
 		lp = drop(X %*% tmp$m)
-		if(vb_factor == "VB_prior" && random$has_random){
+		if(vb_factor %in% c("VB_prior", "PMF_mixed") && random$has_random){
 			lp = lp + drop(random$Z %*% tmp$m_u)
 		}
-		conv = abs(ll - ll_old) < conv_tr
-		it = it + 1
-		ll_old = ll
-#		cat(it)
-		if(vb_factor %in% c("PMF", "PMF_prior", "MIX")){
-			muZ = lp
-			sigmaZ = tmp$sigmaZ
+		target = alpha_target(tmp, lp)
+		if(control$warm_start) init = warm_state(tmp)
+
+		if(control$conv_crit == "coef"){
+			# monitor thresholds and coefficients rather than the ELBO
+			state = c(alpha, tmp$m, if(is.null(tmp$m_u)) NULL else tmp$m_u)
+			conv = !is.null(state_old) &&
+				max(abs(state - state_old) / (1 + abs(state))) < control$tol_outer
+			state_old = state
+		} else {
+			# relative tolerance: the ELBO scales with n
+			conv = abs(ll - ll_old) < control$tol_outer * (1 + abs(ll))
 		}
-
-
+		conv = conv && (it + 1 >= control$min_iter)
+		ll_old = ll
+		it = it + 1
+		if(control$verbose >= 1)
+			cat(sprintf("outer %3d | elbo %.6g | inner it %d%s\n", it, ll,
+				    tmp$it, if(conv) " | converged" else ""))
 	}
-	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf))
+	if(!conv && control$verbose >= 1)
+		cat("outer loop reached maxit_outer without converging\n")
+
+	out = list('est' = tmp, 'alpha' = c(-Inf, alpha, Inf), 'it_outer' = it,
+		   'conv_outer' = conv)
 	return(out)
 }
+
+
 
 # Crude optimization with optim (unefficient)
 

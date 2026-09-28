@@ -31,7 +31,7 @@ summary.viord <- function(object, ci = FALSE, level = 0.95, ...) {
   coef_table <- cbind(m, se, lower, upper)
   rownames(coef_table) <- coef_names
   colnames(coef_table) <- c("Estimate", "Std. Error", "Lower", "Upper")
-  if(!ci) coef_table = coef_table[,1:2] # drop intervals
+  if(!ci) coef_table = coef_table[, 1:2, drop = FALSE] # drop intervals
 
 
   # Thresholds (cutpoints)

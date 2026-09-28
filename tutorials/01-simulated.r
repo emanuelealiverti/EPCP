@@ -27,60 +27,25 @@ Xn    <- ZOSull(xgrid,
                 intKnots = attr(Xz, "intKnots"))
 p <- ncol(Xz)
 
+z95 <- qnorm(0.975)
+
 ## ============================================================
 ## Approach 1 — ZOSull as fixed effects with IG prior on beta
 ## ============================================================
-## Both VB_prior and PMF_prior share the same prior specification.
 ## The IG prior (a0, b0) on sigma_b2 acts as an automatic penalty on the
 ## spline coefficients; its scale is estimated from the data.
 
 prior_ig <- list(mu0 = rep(0, p), a0 = 1, b0 = 2)
 
-fit_vb  <- viord(Y = Yt, X = Xz, prior = prior_ig, algorithm = "VB_prior")
-fit_pmf <- viord(Y = Yt, X = Xz, prior = prior_ig, algorithm = "PMF_prior")
-
+fit_vb <- viord(Y = Yt, X = Xz, prior = prior_ig, algorithm = "VB_prior")
 summary(fit_vb)
-summary(fit_pmf)
 
-## Posterior means and pointwise 95% credible intervals
+## Posterior mean and pointwise 95% credible interval
 f_vb  <- drop(Xn %*% coef(fit_vb))
-f_pmf <- drop(Xn %*% coef(fit_pmf))
+se_vb <- sqrt(rowSums((Xn %*% vcov(fit_vb)) * Xn))
 
-se_vb  <- sqrt(rowSums((Xn %*% vcov(fit_vb))  * Xn))
-se_pmf <- sqrt(rowSums((Xn %*% vcov(fit_pmf)) * Xn))
-
-z95  <- qnorm(0.975)
-ylim <- range(c(f_vb  - z95 * se_vb,  f_vb  + z95 * se_vb,
-                f_pmf - z95 * se_pmf, f_pmf + z95 * se_pmf))
-
-par(mfrow = c(1, 2))
-
-# VB_prior
-plot(xgrid, f_vb, type = "n", ylim = ylim,
-     xlab = "times (ms)", ylab = "linear predictor",
-     main = "VB_prior — O'Sullivan fixed effects")
-polygon(c(xgrid, rev(xgrid)),
-        c(f_vb + z95 * se_vb, rev(f_vb - z95 * se_vb)),
-        col = adjustcolor("steelblue", 0.20), border = NA)
-lines(xgrid, f_vb,  col = "steelblue", lwd = 2)
-rug(x, col = "dodgerblue")
-
-# PMF_prior
-plot(xgrid, f_pmf, type = "n", ylim = ylim,
-     xlab = "times (ms)", ylab = "linear predictor",
-     main = "PMF_prior — O'Sullivan fixed effects")
-polygon(c(xgrid, rev(xgrid)),
-        c(f_pmf + z95 * se_pmf, rev(f_pmf - z95 * se_pmf)),
-        col = adjustcolor("tomato3", 0.20), border = NA)
-lines(xgrid, f_pmf, col = "tomato3", lwd = 2)
-rug(x, col = "tomato")
-
-par(mfrow = c(1, 1))
-
-cat("VB_prior  — sigma_b2: mean =", round(fit_vb$est$sigma_b2_mean,  4),
-    "  E[1/sigma2] =", round(fit_vb$est$sigma_b2_inv_mean,  4), "\n")
-cat("PMF_prior — sigma_b2: mean =", round(fit_pmf$est$sigma_b2_mean, 4),
-    "  E[1/sigma2] =", round(fit_pmf$est$sigma_b2_inv_mean, 4), "\n")
+cat("VB_prior (fixed) — sigma_b2: mean =", round(fit_vb$est$sigma_b2_mean, 4),
+    "  E[1/sigma2] =", round(fit_vb$est$sigma_b2_inv_mean, 4), "\n")
 
 ## ============================================================
 ## Approach 2 — ZOSull as random effects (mixed-model spline)
@@ -88,15 +53,24 @@ cat("PMF_prior — sigma_b2: mean =", round(fit_pmf$est$sigma_b2_mean, 4),
 ## In the mixed-model parameterisation of a penalized spline (Wand 2003),
 ## the smooth deviations from the linear trend are treated as random effects
 ## u ~ N(0, sigma_u^2 I).  The estimated sigma_u^2 plays the role of the
-## smoothing parameter.  Only VB_prior supports random effects.
+## smoothing parameter.
 ##
-## Fixed part: the linear trend x (centred), absorbed by viord's thresholds.
+## Fixed part: the linear trend x (centred); the intercept is absorbed by
+## viord's thresholds.
 ## Random part: ZOSull basis columns, all in a single variance component.
+##
+## Two algorithms are compared:
+##   * VB_prior  — mean-field VB, IG prior on sigma_b2 and sigma_u2;
+##   * PMF_mixed — partially factorized VB, known Gaussian prior on the fixed
+##                 effects and a half-Cauchy prior sigma_u ~ C+(0, s_sigma).
 
-x_c  <- x - mean(x)                              # centre x for identifiability
-X_re <- matrix(x_c, n, 1)
+x_c     <- x - mean(x)                           # centre x for identifiability
+X_re    <- matrix(x_c, n, 1, dimnames = list(NULL, "times_c"))
+xgrid_c <- xgrid - mean(x)
+Wn      <- cbind(xgrid_c, Xn)                    # joint design on the grid
 
-prior_re <- list(mu0 = 0, a0 = 1, b0 = 2, au0 = 1, bu0 = 1)
+prior_re  <- list(mu0 = 0, a0 = 1, b0 = 2, au0 = 1, bu0 = 1)
+prior_hc  <- list(mu0 = 0, Q0 = matrix(1 / 100), s_sigma = 1)
 
 fit_re <- viord(Y       = Yt,
                 X       = X_re,
@@ -105,25 +79,56 @@ fit_re <- viord(Y       = Yt,
                 prior   = prior_re,
                 algorithm = "VB_prior")
 
+fit_hc <- viord(Y       = Yt,
+                X       = X_re,
+                Z       = Xz,
+                Z_group = rep(0, ncol(Xz)),
+                prior   = prior_hc,
+                algorithm = "PMF_mixed")
+
 summary(fit_re)
+summary(fit_hc)
 
-## Reconstruct fitted smooth on the grid
-xgrid_c <- xgrid - mean(x)
-f_re_lin <- xgrid_c * coef(fit_re)              # linear fixed-effect part
-f_re_smo <- drop(Xn %*% ranef(fit_re)[["0"]])   # smooth random-effect part
-f_re     <- f_re_lin + f_re_smo
+## Fitted smooth on the grid: linear fixed part + random-effect part, with
+## pointwise 95% credible intervals from the joint posterior of (beta, u)
+smooth_fit <- function(fit) {
+  f  <- drop(Wn %*% fit$est$m_joint)
+  se <- sqrt(rowSums((Wn %*% fit$est$S_joint) * Wn))
+  list(f = f, se = se)
+}
+sm_re <- smooth_fit(fit_re)
+sm_hc <- smooth_fit(fit_hc)
 
-cat("VB_prior (random) — sigma_u2 mean =",
-    round(fit_re$est$sigma_u2_mean, 4),
-    "  sigma_b2 mean =", round(fit_re$est$sigma_b2_mean, 4), "\n")
+cat("VB_prior (random)  — sigma_u2 mean =", round(fit_re$est$sigma_u2_mean, 4), "\n")
+cat("PMF_mixed (random) — sigma_u2 mean =", round(fit_hc$est$sigma_u2_mean, 4), "\n")
+
+## ---- Credible bands --------------------------------------------------------
+plot_band <- function(f, se, col, main) {
+  plot(xgrid, f, type = "n", ylim = ylim,
+       xlab = "times (ms)", ylab = "linear predictor", main = main)
+  polygon(c(xgrid, rev(xgrid)), c(f + z95 * se, rev(f - z95 * se)),
+          col = adjustcolor(col, 0.20), border = NA)
+  lines(xgrid, f, col = col, lwd = 2)
+  rug(x, col = col)
+}
+
+ylim <- range(c(f_vb - z95 * se_vb, f_vb + z95 * se_vb,
+                sm_re$f - z95 * sm_re$se, sm_re$f + z95 * sm_re$se,
+                sm_hc$f - z95 * sm_hc$se, sm_hc$f + z95 * sm_hc$se))
+
+par(mfrow = c(1, 3))
+plot_band(f_vb,    se_vb,    "steelblue", "VB_prior — fixed effects")
+plot_band(sm_re$f, sm_re$se, "darkgreen", "VB_prior — random effects")
+plot_band(sm_hc$f, sm_hc$se, "tomato3",   "PMF_mixed — random effects")
+par(mfrow = c(1, 1))
 
 ## ---- Overlay all three estimates (centred for comparability) ---------------
-f_list <- list("VB_prior fixed"  = f_vb  - mean(f_vb),
-               "PMF_prior fixed" = f_pmf - mean(f_pmf),
-               "VB_prior random" = f_re  - mean(f_re))
+f_list <- list("VB_prior fixed"   = f_vb    - mean(f_vb),
+               "VB_prior random"  = sm_re$f - mean(sm_re$f),
+               "PMF_mixed random" = sm_hc$f - mean(sm_hc$f))
 
-cols <- c("steelblue", "tomato3", "darkgreen")
-ltys <- c(1, 2, 3)
+cols <- c("steelblue", "darkgreen", "tomato3")
+ltys <- c(1, 3, 2)
 
 ylim2 <- range(unlist(f_list))
 plot(xgrid, f_list[[1]], type = "l", col = cols[1], lwd = 2,
