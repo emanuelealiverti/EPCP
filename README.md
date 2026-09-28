@@ -13,3 +13,5 @@ The core function, `viord()`, performs approximate inference for the cumulative 
 The package provides a unified interface and standard methods, including: `summary()`, `predict()` (via predictive probabilities) and `simulate()` (to sample from the approximate posterior distribution).
 
 The `tutorials` folder includes illustrative examples that show the use of the paper in practice. In particular, [`tutorials/brazilian.md`](https://github.com/emanuelealiverti/EPCP/blob/main/tutorials/brazilian.md) reproduces the analysis of the **Brazilian Bank dataset** (Section 4.1 of the paper).
+
+**Note.** The [`newton-thresholds`](https://github.com/emanuelealiverti/EPCP/tree/newton-thresholds) branch includes some computational extensions (a faster Newton-Raphson step for the thresholds), the `PMF_mixed` algorithm with a half-Cauchy prior on the variance components of the random effects, and an updated tutorial on the **climate** case study.
